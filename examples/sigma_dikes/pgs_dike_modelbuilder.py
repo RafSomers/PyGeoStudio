@@ -122,3 +122,16 @@ def calc_cover_layer_points(points, inward_thickness, low_wl):
     offset_pts = [list(tup) for tup in list(offset_ls.coords)]
     cover_inside_pts = np.vstack((offset_new_first_pt[0], offset_pts[1:-1], offset_new_last_pt[0]))
     return cover_inside_pts
+
+
+def calc_slurry_layer_points(points, outward_thickness, low_wl):
+    """
+    Get points on outside of slurry layer.
+    Slurry layer is on outside of dike between left border of model & low water level.
+    :param points: List of [x, y] coordinate pairs of surface line.
+    :param outward_thickness: Offset thickness (positive inward).
+    :param low_wl: Low water level.
+    :return: List of [x, y] points of inside of cover layer.
+    """
+    pass
+
