@@ -88,38 +88,35 @@ def add_extra_points_on_river_slope(points, low_wl, high_wl):
     return new_points
 
 
-def calc_cover_layer_points(points, start_id=4, end_id=7, thickness=0.25):
+def calc_cover_layer_points(points, thickness, low_wl):
     """
-    Generate a offset cover layer line between start_id and end_id, trimmed to line between the start and end points.
+    Generate an offset cover layer line between start_id and end_id, trimmed to line between the start and end points.
     :param points: List of [x, y] coordinate pairs.
-    :param start_id: 1-based ID of the first point of the top section.
-    :param end_id: 1-based ID of the last point of the top section.
     :param thickness: Offset thickness (positive inward).
-    :return: List of [x, y] p²oints of the trimmed offset line.
+    :return: List of [x, y] points of the trimmed offset line.
     """
-    # Extract top section
-    top_section = points[start_id - 1:end_id]
-    line = LineString(top_section)
-    # Offset inward (left of direction)
-    offset_line = line.parallel_offset(-thickness, side='left', join_style=2)
-    # Create trim line between start and end of original top section
-    p_start = top_section[0]
-    p_end = top_section[-1]
-    trim_line = LineString([p_start, p_end])
-    # Find intersection points of offset & trim line
-    intersection = offset_line.intersection(trim_line)
-    if intersection.is_empty:
-        raise ValueError("No intersection found between offset and trim line.")
-    if isinstance(intersection, MultiPoint):
-        inter_pts = sorted(intersection.geoms, key=lambda p: p.x)
-    elif intersection.geom_type == 'Point':
-        inter_pts = [intersection]
+    # Check points[2] to points[5] for low_wl and groundlevel match
+    start_index_cover = None
+    for i in range(2, 6):
+        if np.isclose(points[i][1], low_wl):
+            start_index_cover = i
+            break
+    # Construct shapely.geometry.LineString object to do offset on outside of cover layer and trim on low water lvl
+    if start_index_cover is not None:
+        cover_out_ls = LineString(points[start_index_cover:9])
+        trim_lowwl_ls = LineString([points[start_index_cover], [0, low_wl]])
     else:
-        raise ValueError("Unexpected intersection geometry.")
-    # Get intersection points
-    intersec_line = LineString([pt.coords[0] for pt in inter_pts])
-    # Construct list of points of cover layer from offset line & intersection points
-    offset_pts = [list(tup) for tup in list(offset_line.coords)]
-    intersec_pts = [list(tup) for tup in list(intersec_line.coords)]
-    cover_pts = [intersec_pts[0]] + offset_pts[1:-1] + [intersec_pts[-1]]
-    return cover_pts
+        raise ValueError("Cannot create offset linestring! Low water is not in points 3 to 5!")
+    # Construct extra shapely.geometry.LineString objects to do trimming
+    trim_groundlvl_ls = LineString([[0, points[8][1]], points[8]])
+    # Create offset
+    offset_ls = cover_out_ls.parallel_offset(thickness, side='right', join_style=2)
+    # Trim offset on low_wl & groundlvl
+    intersection_lowwl = offset_ls.intersection(trim_lowwl_ls)
+    intersection_groundlvl = offset_ls.intersection(trim_groundlvl_ls)
+    # Create cover inside points
+    offset_new_first_pt = [list(tup) for tup in list(intersection_lowwl.coords)]
+    offset_new_last_pt = [list(tup) for tup in list(intersection_groundlvl.coords)]
+    offset_pts = [list(tup) for tup in list(offset_ls.coords)]
+    cover_inside_pts = np.vstack((offset_new_first_pt[0], offset_pts[1:-1], offset_new_last_pt[0]))
+    return cover_inside_pts

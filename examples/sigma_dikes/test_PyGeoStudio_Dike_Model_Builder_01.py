@@ -11,7 +11,7 @@ import PyGeoStudio as pgs
 import pgs_dike_modelbuilder as pgs_mb
 
 # Check main path
-main_path = r"C:\Users\XZ6583\Desktop\Work Docs\Sigma 3.0\pythonProject\PyGeoStudio-main"
+main_path = r"C:\Users\WQ5783\OneDrive - ENGIE\5_PyProjects\PyGeoStudio"
 
 # Open file
 src_file = "examples/GeoStudio_files/test.gsz"
@@ -25,7 +25,7 @@ geometry.delete()
 geometry.listProperties()
 
 # Get dike basic points
-quantile_excel_filepath = r"C:\Users\XZ6583\Desktop\Work Docs\Sigma 3.0\pythonProject\PyGeoStudio-main\examples\sigma_dikes" + "/" + "cross_sections_schelde_quantiles.xlsx"
+quantile_excel_filepath = main_path + "/" + r"examples\sigma_dikes" + "/" + "cross_sections_schelde_quantiles.xlsx"
 surface_pt_table, surface_pts, surface_notes = pgs_mb.get_surface_points_from_quantile_excel(quantile_excel_filepath, 0.5)
 surface_pt_table
 
@@ -43,21 +43,11 @@ geometry.addPoints(surface_pts)
 surface_lns = [[i, i+1] for i in range(1, len(geometry.points))]
 geometry.addLines(surface_lns)
 
+# Create cover layer
+cover_inside_pts = pgs_mb.calc_cover_layer_points(surface_pts, 0.50, low_wl)
+geometry.addPoints(cover_inside_pts)
 
 
-
-# --- COVER (two parts) ----------------------------------------------------
-# We ask the builder to return BOTH parts (slope + top) AND also write them to the model.
-cover_parts = pgs_mb.calc_cover_layer_points(
-    surface_pts,
-    low_wl=low_wl,
-    high_wl=high_wl,
-    start_id=4,          # P4..P7 is the “top” section
-    end_id=7,
-    thickness=0.50,      # bump to 1.0 once to confirm visibility, then set back
-    geometry=geometry,   # <- this draws COVER_P1 and COVER_P2 as real lines
-    return_parts=True     # <- this makes sure we get a dict with both parts back
-)
 
 """
 # Normalize into cover_p1 / cover_p2 attributes
@@ -139,3 +129,4 @@ if regions_df is not None:
 out_file = "examples/GeoStudio_files/test-Model-Builder.gsz"
 geofile.saveAs(main_path+"/"+out_file)
 
+print('end')
