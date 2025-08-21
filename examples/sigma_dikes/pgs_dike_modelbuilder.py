@@ -53,7 +53,7 @@ def make_landside_horizontal(points):
     ymin2 = pmin2[1]
     xmin1 = pmin1[0]
     ymin1 = ymin2
-    return points[:-1] + [[xmin1, ymin1]]
+    return np.vstack((points[:-1], [[xmin1, ymin1]]))
 
 
 def add_extra_points_on_river_slope(points, low_wl, high_wl):
@@ -86,26 +86,6 @@ def add_extra_points_on_river_slope(points, low_wl, high_wl):
     interpolated_points = np.array([[interpolate_x(y), y] for y in y_targets])
     new_points = np.vstack((points[:2], interpolated_points, points[3:]))   # Insert between p2 en p4
     return new_points
-
-
-def add_riverpoint_at_groundlevel(points):
-    """
-    Adds a new point on the river slope on groundlevel of landside.
-    :param points: List of [x, y] coordinate pairs.
-    :return: New list of points with the interpolated point inserted between points 3 and 4.
-    """
-    p3 = points[2]
-    p4 = points[3]
-    y_target = points[5][1]
-    x3, y3 = p3
-    x4, y4 = p4
-    if y4 == y3:
-        raise ValueError("Cannot interpolate with horizontal line segment between points 3 and 4.")
-    # Linear interpolation to find x at y = y_target
-    x_interp = x3 + (y_target - y3) * (x4 - x3) / (y4 - y3)
-    interpolated_point = [x_interp, y_target]
-    # Insert the new point between points 3 and 4
-    return points[:3] + [interpolated_point] + points[3:]
 
 
 def calc_cover_layer_points(points, start_id=4, end_id=7, thickness=0.25):
