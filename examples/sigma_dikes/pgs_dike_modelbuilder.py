@@ -88,12 +88,14 @@ def add_extra_points_on_river_slope(points, low_wl, high_wl):
     return new_points
 
 
-def calc_cover_layer_points(points, thickness, low_wl):
+def calc_cover_layer_points(points, inward_thickness, low_wl):
     """
-    Generate an offset cover layer line between start_id and end_id, trimmed to line between the start and end points.
-    :param points: List of [x, y] coordinate pairs.
-    :param thickness: Offset thickness (positive inward).
-    :return: List of [x, y] points of the trimmed offset line.
+    Get points on inside of cover layer.
+    Cover layer is on inside of dike between low water level & bottom of slope on landside.
+    :param points: List of [x, y] coordinate pairs of surface line.
+    :param inward_thickness: Offset thickness (positive inward).
+    :param low_wl: Low water level.
+    :return: List of [x, y] points of inside of cover layer.
     """
     # Check points[2] to points[5] for low_wl and groundlevel match
     start_index_cover = None
@@ -110,7 +112,7 @@ def calc_cover_layer_points(points, thickness, low_wl):
     # Construct extra shapely.geometry.LineString objects to do trimming
     trim_groundlvl_ls = LineString([[0, points[8][1]], points[8]])
     # Create offset
-    offset_ls = cover_out_ls.parallel_offset(thickness, side='right', join_style=2)
+    offset_ls = cover_out_ls.parallel_offset(inward_thickness, side='right', join_style=2)
     # Trim offset on low_wl & groundlvl
     intersection_lowwl = offset_ls.intersection(trim_lowwl_ls)
     intersection_groundlvl = offset_ls.intersection(trim_groundlvl_ls)
