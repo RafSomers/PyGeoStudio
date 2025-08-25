@@ -47,7 +47,7 @@ geometry.addLines(surface_lns)
 cover_inside_pts = pgs_mb.calc_cover_layer_points(surface_pts, 0.50, low_wl)
 geometry.addPoints(cover_inside_pts)
 
-# Create cover layer
+# Create slurry layer
 # slurry_outside_pts = pgs_mb.calc_slurry_layer_points(surface_pts, 0.50, low_wl)
 # geometry.addPoints(slurry_outside_pts)
 
