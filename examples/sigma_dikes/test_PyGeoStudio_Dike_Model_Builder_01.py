@@ -6,7 +6,7 @@ Testing pgs_dike_Model_Builder
 
 # %%
 # Open example GeoStudio study
-import importlib
+import matplotlib.pyplot as plt
 import PyGeoStudio as pgs
 import pgs_dike_modelbuilder as pgs_mb
 
@@ -17,35 +17,39 @@ main_path = r"C:\Users\WQ5783\OneDrive - ENGIE\5_PyProjects\PyGeoStudio"
 src_file = "examples/GeoStudio_files/test.gsz"
 geofile = pgs.GeoStudioFile(main_path+"/"+src_file)
 
-# Delete all
-geofile.showGeometries()
+# Delete all & check
+# geofile.showGeometries()
 geometry = geofile.getGeometryByID(1)
 geometry.delete()
-
-geometry.listProperties()
+# geometry.listProperties()
 
 # Get dike basic points
 quantile_excel_filepath = main_path + "/" + r"examples\sigma_dikes" + "/" + "cross_sections_schelde_quantiles.xlsx"
 surface_pt_table, surface_pts, surface_notes = pgs_mb.get_surface_points_from_quantile_excel(quantile_excel_filepath, 0.5)
-surface_pt_table
 
 # Make landside horizontal
 surface_pts = pgs_mb.make_landside_horizontal(surface_pts)
-surface_pts
 
 # Add extra points to surface points
 low_wl, high_wl = 0.23, 5.62
 surface_pts = pgs_mb.add_extra_points_on_river_slope(surface_pts, low_wl, high_wl)
-surface_pts
 
-# Add surface points of dike to geometry & connect with lines
+# Add surface points of dike to geometry
 geometry.addPoints(surface_pts)
+
+# Connect surface points with a line
 surface_lns = [[i, i+1] for i in range(1, len(geometry.points))]
 geometry.addLines(surface_lns)
 
 # Create cover layer
-cover_inside_pts = pgs_mb.calc_cover_layer_points(surface_pts, 0.50, low_wl)
+t_cover = 0.50
+cover_inside_pts = pgs_mb.calc_cover_layer_points(surface_pts, t_cover, low_wl)
 geometry.addPoints(cover_inside_pts)
+
+# Check geometry
+print(geometry.point_table)
+fig, ax = geometry.draw()
+plt.show()
 
 # Create slurry layer
 # slurry_outside_pts = pgs_mb.calc_slurry_layer_points(surface_pts, 0.50, low_wl)
@@ -128,7 +132,7 @@ if regions_df is not None:
 
 # %%
 # Write modified study under new file:
-out_file = "examples/GeoStudio_files/test-Model-Builder.gsz"
-geofile.saveAs(main_path+"/"+out_file)
+# out_file = "examples/GeoStudio_files/test-Model-Builder.gsz"
+# geofile.saveAs(main_path+"/"+out_file)
 
 print('end')
