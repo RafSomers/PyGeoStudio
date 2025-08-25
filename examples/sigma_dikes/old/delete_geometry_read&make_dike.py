@@ -13,7 +13,7 @@ from shapely.ops import substring
 import PyGeoStudio as pgs
 
 # Check main path
-main_path = "C:/Users/WQ5783/OneDrive - ENGIE/5_PyProjects/PyGeoStudio"
+main_path = "/"
 
 # Open file
 src_file = "examples/GeoStudio_files/test.gsz"
