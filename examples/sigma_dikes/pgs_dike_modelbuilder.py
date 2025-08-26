@@ -23,13 +23,13 @@ def get_profile_points_from_quantile_excel(excel_filepath, q_value, notes=None):
     """
     if notes == None:
         notes = [
-            "Left model boundary",  # point-1
-            "Bottom river slope",  # point-2
-            "Midpoint river slope",  # point-3
-            "Top (crest) river slope",  # point-4
-            "Top (crest) land slope",  # point-5
-            "Bottom land slope",  # point-6
-            "Rigjt model boundary"  # point-7
+            "Left model boundary",  # point-0
+            "Bottom river slope",  # point-1
+            "Midpoint river slope",  # point-2
+            "Top (crest) river slope",  # point-3
+            "Top (crest) land slope",  # point-4
+            "Bottom land slope",  # point-5
+            "Rigjt model boundary"  # point-6
         ]
     df = pd.read_excel(excel_filepath, engine="openpyxl")
     row = df[df['fid'] == q_value]
@@ -54,6 +54,49 @@ def make_landside_horizontal(points):
     xmin1 = pmin1[0]
     ymin1 = ymin2
     return np.vstack((points[:-1], [[xmin1, ymin1]]))
+
+
+def calc_soillayers_bottom_levels (profile_points, scenario, low_wl):
+    """
+    Return soil subground layer bottom levels (Y-values) per scenario; clay thickness is always 0.5m
+    Scenrios:
+    s0: Sand dike – All sand ground layers            -> no clay levels
+    s1: Sand dike – Clay layer at landside ground     -> top clay at GL-0.5
+    s2: Sand dike – Clay layer 1 m below low water    -> top clay at (LWL-1.0), next at -0.5 below
+    s3: Sand dike – All clay layers                   -> two 0.5 m clay bands from GL downward
+     Returns (y_top_level, y_mid_level) where any missing level is None.
+    """
+    # refs
+    toe_y = profile_points[1][1]
+    crest_y = profile_points[3][1]
+    bottom_y = toe_y - 3.0 * (crest_y - toe_y)
+    def clamp(y):
+        return max(min(y, crest_y), bottom_y)
+    key = str(scenario).strip().lower()
+    if key.startswith("s"):
+        key = key[1:]
+    if key == '0':
+        H = crest_y - bottom_y
+        bottom_layer1 = clamp((crest_y-H/3.0))
+        bottom_layer2 = clamp(crest_y - 2.0*H/3)
+        bottom_layer3 = bottom_y
+        return bottom_layer1, bottom_layer2, bottom_layer3
+    if key == '1':
+        bottom_layer1 = clamp(crest_y - 0.5)
+        rem = bottom_layer1 - bottom_y
+        bottom_layer2 = clamp(crest_y - rem / 2.0)
+        bottom_layer3 = bottom_y
+        return bottom_layer1, bottom_layer2, bottom_layer3
+    if key == '2':
+        bottom_layer1 = clamp(float(low_wl)-1.0)
+        bottom_layer2 = clamp(bottom_layer1-0.5)
+        bottom_layer3 = bottom_y
+        return bottom_layer1, bottom_layer2, bottom_layer3
+    if key == '3':
+        bottom_layer1 = clamp(crest_y-0.5)
+        bottom_layer2 = clamp (bottom_layer1 - 0.5)
+        bottom_layer3 = bottom_y
+        return bottom_layer1, bottom_layer2, bottom_layer3
 
 
 def add_extra_points_on_river_slope(points, low_wl, high_wl):
