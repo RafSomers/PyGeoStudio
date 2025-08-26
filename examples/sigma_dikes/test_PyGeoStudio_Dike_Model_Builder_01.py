@@ -46,14 +46,16 @@ t_cover = 0.50
 cover_inside_pts = pgs_mb.calc_cover_layer_points(surface_pts, t_cover, low_wl)
 geometry.addPoints(cover_inside_pts)
 
+# Create slurry layer
+# slurry_outside_pts = pgs_mb.calc_slurry_layer_points(surface_pts, 0.50, low_wl)
+# geometry.addPoints(slurry_outside_pts)
+
 # Check geometry
 print(geometry.point_table)
 fig, ax = geometry.draw()
 plt.show()
 
-# Create slurry layer
-# slurry_outside_pts = pgs_mb.calc_slurry_layer_points(surface_pts, 0.50, low_wl)
-# geometry.addPoints(slurry_outside_pts)
+
 
 """
 # Normalize into cover_p1 / cover_p2 attributes

@@ -120,7 +120,8 @@ def calc_cover_layer_points(points, inward_thickness, low_wl):
     offset_new_first_pt = [list(tup) for tup in list(intersection_lowwl.coords)]
     offset_new_last_pt = [list(tup) for tup in list(intersection_groundlvl.coords)]
     offset_pts = [list(tup) for tup in list(offset_ls.coords)]
-    cover_inside_pts = np.vstack((offset_new_first_pt[0], offset_pts[1:-1], offset_new_last_pt[0]))
+    offset_pts = [p for p in offset_pts if p[1] >= low_wl]
+    cover_inside_pts = np.vstack((offset_new_first_pt[0], offset_pts[:-1], offset_new_last_pt[0]))
     return cover_inside_pts
 
 
