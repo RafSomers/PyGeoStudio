@@ -3,43 +3,51 @@ Testing pgs_dike_Model_Builder
 ===============
 
 """
-
-# %%
-# Open example GeoStudio study
 import matplotlib.pyplot as plt
 import PyGeoStudio as pgs
 import pgs_dike_modelbuilder as pgs_mb
 
-# Check main path
+# Inputs
+#########
+# Work folder main path
 main_path = r"C:\Users\WQ5783\OneDrive - ENGIE\5_PyProjects\PyGeoStudio"
 
-# Open file
+# Scenario ID selection
+analysis_type = 'A0'
+river_id = 'R0'
+quantile_id = 'Q0'
+soil_id = 'S1'
+xtra_id = 'X1'
+# todo: variables to be set automatically based unique scenario_id)
+quantile = 0.5
+quantile_excel_filepath = main_path + "/" + r"examples\sigma_dikes" + "/" + "cross_sections_schelde_quantiles.xlsx"
+low_wl, high_wl = 0.23, 5.65
+cover_thickness = 0.5
+
+
+# Create empty GSZ file
+#######################
 src_file = "examples/GeoStudio_files/test.gsz"
 geofile = pgs.GeoStudioFile(main_path+"/"+src_file)
-
-# Delete all & check
-# geofile.showGeometries()
 geometry = geofile.getGeometryByID(1)
 geometry.delete()
-# geometry.listProperties()
 
+
+# Generate geometry
+####################
 # Get dike basic points
-quantile_excel_filepath = main_path + "/" + r"examples\sigma_dikes" + "/" + "cross_sections_schelde_quantiles.xlsx"
-_, profile_pts, _ = pgs_mb.get_profile_points_from_quantile_excel(quantile_excel_filepath, 0.50)
+_, profile_pts, _ = pgs_mb.get_profile_points_from_quantile_excel(quantile_excel_filepath, quantile)
 
 # Make landside horizontal
 profile_pts = pgs_mb.make_landside_horizontal(profile_pts)
 
+# Get soil levels
+b1, b2, b3 = pgs_mb.calc_soillayers_bottom_levels(profile_pts, soil_id, low_wl)
+print("soil levels:", b1, b2, b3)
+
 # Add extra points to surface points
-low_wl, high_wl = 0.23, 5.62
-profile_pts = pgs_mb.add_extra_points_on_river_slope(profile_pts, low_wl, high_wl)
+xtra_profile_pts = pgs_mb.add_extra_points_on_river_slope(profile_pts, low_wl, high_wl)
 
-# Add surface points of dike to geometry
-geometry.addPoints(profile_pts)
-
-# Connect surface points with a line
-surface_lns = [[i, i+1] for i in range(1, len(geometry.points))]
-geometry.addLines(surface_lns)
 
 # Create cover layer
 t_cover = 0.50
@@ -49,6 +57,8 @@ geometry.addPoints(cover_inside_pts)
 # Create slurry layer
 # slurry_outside_pts = pgs_mb.calc_slurry_layer_points(profile_pts, 0.50, low_wl)
 # geometry.addPoints(slurry_outside_pts)
+
+
 
 # Check geometry
 print(geometry.point_table)
