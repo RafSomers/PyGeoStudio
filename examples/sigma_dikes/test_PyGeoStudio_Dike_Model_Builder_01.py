@@ -46,11 +46,11 @@ bot_l1, bot_l2, bot_l3 = pgs_mb.calc_soillayers_bottom_levels(profile_pts, soil_
 print("soil levels:", bot_l1, bot_l2, bot_l3)
 
 # Creqte cover lqyer
-cover_inside_pts = pgs_mb.calc_cover_layer_points(profile_pts, 0.5, low_wl, high_wl, bot_l1, bot_l2)
-
-geometry.addPoints(cover_inside_pts)
+# todo: Code is working with no errors, but points are not created correctly
+cover_inside_pts = pgs_mb.calc_cover_layer_points(profile_pts, cover_thickness, low_wl, high_wl, bot_l1, bot_l2)
 
 # Create slurry layer
+# todo: Update similarly as calc_cover_layer_points
 # slurry_outside_pts = pgs_mb.calc_slurry_layer_points(profile_pts, 0.50, low_wl)
 # geometry.addPoints(slurry_outside_pts)
 
@@ -58,6 +58,8 @@ geometry.addPoints(cover_inside_pts)
 # xtra_profile_pts = pgs_mb.add_extra_points_on_river_slope(profile_pts, low_wl, high_wl)
 
 # Check geometry
+geometry.addPoints(profile_pts)
+geometry.addPoints(cover_inside_pts)
 print(geometry.point_table)
 fig, ax = geometry.draw()
 plt.show()
