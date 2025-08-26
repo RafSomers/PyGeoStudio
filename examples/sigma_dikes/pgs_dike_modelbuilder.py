@@ -14,7 +14,7 @@ from shapely.geometry import LineString, MultiPoint
 from shapely.ops import substring
 
 
-def get_surface_points_from_quantile_excel(excel_filepath, q_value, notes=None):
+def get_profile_points_from_quantile_excel(excel_filepath, q_value, notes=None):
     """
     Extracts a list of [x, y] points for a given quantile value from the Excel data.
     :param q_value: The quantile value to filter the data.

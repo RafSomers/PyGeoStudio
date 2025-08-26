@@ -25,17 +25,17 @@ geometry.delete()
 
 # Get dike basic points
 quantile_excel_filepath = main_path + "/" + r"examples\sigma_dikes" + "/" + "cross_sections_schelde_quantiles.xlsx"
-surface_pt_table, surface_pts, surface_notes = pgs_mb.get_surface_points_from_quantile_excel(quantile_excel_filepath, 0.5)
+_, profile_pts, _ = pgs_mb.get_profile_points_from_quantile_excel(quantile_excel_filepath, 0.50)
 
 # Make landside horizontal
-surface_pts = pgs_mb.make_landside_horizontal(surface_pts)
+profile_pts = pgs_mb.make_landside_horizontal(profile_pts)
 
 # Add extra points to surface points
 low_wl, high_wl = 0.23, 5.62
-surface_pts = pgs_mb.add_extra_points_on_river_slope(surface_pts, low_wl, high_wl)
+profile_pts = pgs_mb.add_extra_points_on_river_slope(profile_pts, low_wl, high_wl)
 
 # Add surface points of dike to geometry
-geometry.addPoints(surface_pts)
+geometry.addPoints(profile_pts)
 
 # Connect surface points with a line
 surface_lns = [[i, i+1] for i in range(1, len(geometry.points))]
@@ -43,11 +43,11 @@ geometry.addLines(surface_lns)
 
 # Create cover layer
 t_cover = 0.50
-cover_inside_pts = pgs_mb.calc_cover_layer_points(surface_pts, t_cover, low_wl)
+cover_inside_pts = pgs_mb.calc_cover_layer_points(profile_pts, t_cover, low_wl)
 geometry.addPoints(cover_inside_pts)
 
 # Create slurry layer
-# slurry_outside_pts = pgs_mb.calc_slurry_layer_points(surface_pts, 0.50, low_wl)
+# slurry_outside_pts = pgs_mb.calc_slurry_layer_points(profile_pts, 0.50, low_wl)
 # geometry.addPoints(slurry_outside_pts)
 
 # Check geometry
@@ -69,7 +69,7 @@ else:
 # --- COVER INNER POINTS (top section offset as points) --------------------
 # Compute ONCE (no de-dupe)
 cover_inner_pts = pgs_mb.calc_cover_layer_points(
-    surface_pts, start_id=4, end_id=7, thickness=0.50
+    profile_pts, start_id=4, end_id=7, thickness=0.50
 )
 
 # Add ONCE
@@ -96,12 +96,12 @@ if cover_top:
     geometry.cover_inner_pts = cover_top + cover_bottom  # now a closed loop when mapped to IDs
 
 # Add slurry layer (points from start_id to end_id)
-slurry_pts = pgs_mb.add_slurry_layer(surface_pts, thickness=1.0, start_id=1, end_id=4)
+slurry_pts = pgs_mb.add_slurry_layer(profile_pts, thickness=1.0, start_id=1, end_id=4)
 geometry.addPoints(slurry_pts)
 print(f"Added slurry layer with {len(slurry_pts)} points.")
 
 # Add subground layers and add them directly to the geometry
-Subground_layers = pgs_mb.add_subground_layers(surface_pts, layer_thickness=2.0, num_layers=3)
+Subground_layers = pgs_mb.add_subground_layers(profile_pts, layer_thickness=2.0, num_layers=3)
 
 
 # Add to geometry and store for region creation
@@ -112,7 +112,7 @@ for i, layer in enumerate(Subground_layers, start=1):
 geometry.subground_layers = Subground_layers
 
 # Store layer points in geometry attributes
-geometry.surface_pts = surface_pts
+geometry.profile_pts = profile_pts
 geometry.cover_inner_pts = cover_inner_pts
 geometry.slurry_layer_pts = slurry_pts
 geometry.subground_layers = Subground_layers
@@ -121,7 +121,7 @@ geometry.subground_layers = Subground_layers
 
 # --- Create regions 
 # Expose the surface points so the auto-detector can use them too
-geometry.surface_pts = surface_pts
+geometry.profile_pts = profile_pts
 
 regions_df = pgs_mb.create_all_regions(geometry)
 print("✅ Regions created.")
