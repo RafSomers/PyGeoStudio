@@ -99,6 +99,88 @@ def calc_soillayers_bottom_levels (profile_points, scenario, low_wl):
         return bottom_layer1, bottom_layer2, bottom_layer3
 
 
+def calc_cover_layer_points(profile_points, inward_thickness, low_wl, high_wl, bot_l1, bot_l2):
+    """
+    Generate an offset cover layer line between start_id and end_id, trimmed to line between the start and end points.
+    :param profile_points: List of [x, y] coordinate pairs.
+    :param inward_thickness: Offset thickness (positive inward).
+    :param low_wl
+    :param high_wl
+    :param bot_l1
+    :param bot_l2
+    :return: List of [x, y] points of the trimmed offset line.
+    """
+    # Variables
+    lw_left, lw_right = [profile_points[0][0], low_wl], [profile_points[-1][0], low_wl]
+    hw_left, hw_right = [profile_points[0][0], high_wl], [profile_points[-1][0], high_wl]
+    gl_left, gl_right = [profile_points[0][0], profile_points[-1][1]], profile_points[-1]
+    l1_left, l1_right = [profile_points[0][0], bot_l1], [profile_points[-1][0], bot_l1]
+    l2_left, l2_right = [profile_points[0][0], bot_l2], [profile_points[-1][0], bot_l2]
+
+    # Construct shapely.geometry.LineString objects
+    profile_ls = LineString(profile_points)
+    trim_lowwl_ls = LineString([lw_left, lw_right])
+    trim_highwl_ls = LineString([hw_left, hw_right])
+    trim_groundlvl_ls = LineString([gl_left, gl_right])
+    trim_bot_l1_ls = LineString([l1_left, l1_right])
+    trim_bot_l2_ls = LineString([l2_left, l2_right])
+
+    # Create offset LimeString and points list
+    offset_ls = profile_ls.parallel_offset(inward_thickness, side='right', join_style=2)
+    offset_pts = [list(tup) for tup in list(offset_ls.coords)]
+
+    # Get intersectiuons
+    intersection_lowwl = offset_ls.intersection(trim_lowwl_ls)
+    intersection_highwl = offset_ls.intersection(trim_highwl_ls)
+    intersection_groundlvl = offset_ls.intersection(trim_groundlvl_ls)
+    intersection_bot_l1 = offset_ls.intersection(trim_bot_l1_ls)
+    intersection_bot_l2 = offset_ls.intersection(trim_bot_l2_ls)
+
+    # Get points from intersections
+    def get_extra_points(list_of_geoms, list_of_locs):
+        list_of_extra_points = []
+        for geom, loc in zip(list_of_geoms, list_of_locs):
+            if geom.is_empty:
+                continue
+            elif geom.geom_type == 'Point':
+                list_of_extra_points.append(list(geom.coords[0]))
+            elif geom.geom_type == 'MultiPoint':
+                all_mpts_tuple_list = [pt_geom.coords[0] for pt_geom in geom.geoms]
+                all_mpts = [list(tup) for tup in all_mpts_tuple_list]
+                sorted_mpts = sorted(all_mpts, key=lambda x: x[0])
+                if loc in ['low', 'high']:
+                    list_of_extra_points.append(sorted_mpts[0])
+            else:
+                raise ValueError(f"Unsupported geometry type: {geom.geom_type}")
+
+        return np.array(list_of_extra_points)
+
+    # Apply to your geometries
+    geoms = [intersection_lowwl, intersection_highwl, intersection_groundlvl, intersection_bot_l1, intersection_bot_l2]
+    locs = ['low', 'low', 'low', 'low', 'low']
+    extra_points_on_slope = get_extra_points(geoms, locs)
+    gl_land_pts = get_extra_points([intersection_groundlvl], ['high'])
+
+    # Construct cover_inside_points output
+    offset_pts_low2crest = [p for p in offset_pts if p[1] > low_wl][:-4]  # above low_wl & not including crest
+    unsorted_pts = np.vstack((offset_pts_low2crest, extra_points_on_slope))
+    sorted_pts = np.vstack(sorted(unsorted_pts, key=lambda x: x[1]))  # Sort by y-coordinate
+    cover_inside_pts = np.vstack((sorted_pts, offset_pts[-3:-1], gl_land_pt))
+    return cover_inside_pts
+
+
+def calc_slurry_layer_points(points, outward_thickness, low_wl):
+    """
+    Get points on outside of slurry layer.
+    Slurry layer is on outside of dike between left border of model & low water level.
+    :param points: List of [x, y] coordinate pairs of surface line.
+    :param outward_thickness: Offset thickness (positive inward).
+    :param low_wl: Low water level.
+    :return: List of [x, y] points of inside of cover layer.
+    """
+    pass
+
+
 def add_extra_points_on_river_slope(points, low_wl, high_wl):
     """
     Adds new points on the river slope at low water level, high water level and ground level.
@@ -130,52 +212,4 @@ def add_extra_points_on_river_slope(points, low_wl, high_wl):
     new_points = np.vstack((points[:2], interpolated_points, points[3:]))   # Insert between p2 en p4
     return new_points
 
-
-def calc_cover_layer_points(points, inward_thickness, low_wl):
-    """
-    Get points on inside of cover layer.
-    Cover layer is on inside of dike between low water level & bottom of slope on landside.
-    :param points: List of [x, y] coordinate pairs of surface line.
-    :param inward_thickness: Offset thickness (positive inward).
-    :param low_wl: Low water level.
-    :return: List of [x, y] points of inside of cover layer.
-    """
-    # Check points[2] to points[5] for low_wl and groundlevel match
-    start_index_cover = None
-    for i in range(2, 6):
-        if np.isclose(points[i][1], low_wl):
-            start_index_cover = i
-            break
-    # Construct shapely.geometry.LineString object to do offset on outside of cover layer and trim on low water lvl
-    if start_index_cover is not None:
-        cover_out_ls = LineString(points[start_index_cover:9])
-        trim_lowwl_ls = LineString([points[start_index_cover], [0, low_wl]])
-    else:
-        raise ValueError("Cannot create offset linestring! Low water is not in points 3 to 5!")
-    # Construct extra shapely.geometry.LineString objects to do trimming
-    trim_groundlvl_ls = LineString([[0, points[8][1]], points[8]])
-    # Create offset
-    offset_ls = cover_out_ls.parallel_offset(inward_thickness, side='right', join_style=2)
-    # Trim offset on low_wl & groundlvl
-    intersection_lowwl = offset_ls.intersection(trim_lowwl_ls)
-    intersection_groundlvl = offset_ls.intersection(trim_groundlvl_ls)
-    # Create cover inside points
-    offset_new_first_pt = [list(tup) for tup in list(intersection_lowwl.coords)]
-    offset_new_last_pt = [list(tup) for tup in list(intersection_groundlvl.coords)]
-    offset_pts = [list(tup) for tup in list(offset_ls.coords)]
-    offset_pts = [p for p in offset_pts if p[1] >= low_wl]
-    cover_inside_pts = np.vstack((offset_new_first_pt[0], offset_pts[:-1], offset_new_last_pt[0]))
-    return cover_inside_pts
-
-
-def calc_slurry_layer_points(points, outward_thickness, low_wl):
-    """
-    Get points on outside of slurry layer.
-    Slurry layer is on outside of dike between left border of model & low water level.
-    :param points: List of [x, y] coordinate pairs of surface line.
-    :param outward_thickness: Offset thickness (positive inward).
-    :param low_wl: Low water level.
-    :return: List of [x, y] points of inside of cover layer.
-    """
-    pass
 

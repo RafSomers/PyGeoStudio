@@ -42,23 +42,20 @@ _, profile_pts, _ = pgs_mb.get_profile_points_from_quantile_excel(quantile_excel
 profile_pts = pgs_mb.make_landside_horizontal(profile_pts)
 
 # Get soil levels
-b1, b2, b3 = pgs_mb.calc_soillayers_bottom_levels(profile_pts, soil_id, low_wl)
-print("soil levels:", b1, b2, b3)
+bot_l1, bot_l2, bot_l3 = pgs_mb.calc_soillayers_bottom_levels(profile_pts, soil_id, low_wl)
+print("soil levels:", bot_l1, bot_l2, bot_l3)
 
-# Add extra points to surface points
-xtra_profile_pts = pgs_mb.add_extra_points_on_river_slope(profile_pts, low_wl, high_wl)
+# Creqte cover lqyer
+cover_inside_pts = pgs_mb.calc_cover_layer_points(profile_pts, 0.5, low_wl, high_wl, bot_l1, bot_l2)
 
-
-# Create cover layer
-t_cover = 0.50
-cover_inside_pts = pgs_mb.calc_cover_layer_points(profile_pts, t_cover, low_wl)
 geometry.addPoints(cover_inside_pts)
 
 # Create slurry layer
 # slurry_outside_pts = pgs_mb.calc_slurry_layer_points(profile_pts, 0.50, low_wl)
 # geometry.addPoints(slurry_outside_pts)
 
-
+# Add extra points to surface points
+# xtra_profile_pts = pgs_mb.add_extra_points_on_river_slope(profile_pts, low_wl, high_wl)
 
 # Check geometry
 print(geometry.point_table)
