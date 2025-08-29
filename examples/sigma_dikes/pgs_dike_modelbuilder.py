@@ -106,7 +106,8 @@ def calc_cover_layer_points(profile_points, inward_thickness, low_wl, high_wl, b
     l2_left, l2_right = [profile_points[0][0], bot_l2], [profile_points[-1][0], bot_l2]
 
     # Construct shapely.geometry.LineString objects
-    profile_ls = LineString(profile_points)
+    dike_points = profile_points[1:6]  # no river bed, no ground level
+    dike_ls = LineString(dike_points)
     trim_lowwl_ls = LineString([lw_left, lw_right])
     trim_highwl_ls = LineString([hw_left, hw_right])
     trim_groundlvl_ls = LineString([gl_left, gl_right])
@@ -114,7 +115,7 @@ def calc_cover_layer_points(profile_points, inward_thickness, low_wl, high_wl, b
     trim_bot_l2_ls = LineString([l2_left, l2_right])
 
     # Create offset LimeString and points list
-    offset_ls = profile_ls.parallel_offset(inward_thickness, side='right', join_style=2)
+    offset_ls = dike_ls.parallel_offset(inward_thickness, side='right', join_style=2)
     offset_pts = [list(tup) for tup in list(offset_ls.coords)]
 
     # Get intersectiuons
