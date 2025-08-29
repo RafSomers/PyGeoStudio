@@ -125,35 +125,39 @@ def calc_cover_layer_points(profile_points, inward_thickness, low_wl, high_wl, b
     intersection_bot_l2 = offset_ls.intersection(trim_bot_l2_ls)
 
     # Get points from intersections
-    def get_extra_points(list_of_geoms, list_of_locs):
-        list_of_extra_points = []
-        for geom, loc in zip(list_of_geoms, list_of_locs):
+    def select_point_from_intersection(list_of_intersections, list_of_locs):
+        list_of_selected_points = []
+        for geom, loc in zip(list_of_intersections, list_of_locs):
             if geom.is_empty:
                 continue
             elif geom.geom_type == 'Point':
-                list_of_extra_points.append(list(geom.coords[0]))
+                list_of_selected_points.append(list(geom.coords[0]))
             elif geom.geom_type == 'MultiPoint':
                 all_mpts_tuple_list = [pt_geom.coords[0] for pt_geom in geom.geoms]
                 all_mpts = [list(tup) for tup in all_mpts_tuple_list]
                 sorted_mpts = sorted(all_mpts, key=lambda x: x[0])
-                if loc in ['low', 'high']:
-                    list_of_extra_points.append(sorted_mpts[0])
+                if loc == 'left':
+                    list_of_selected_points.append(sorted_mpts[0])
+                elif loc == 'right':
+                    list_of_selected_points.append(sorted_mpts[1])
+                else:
+                    raise ValueError(f"location should be left or right")
             else:
                 raise ValueError(f"Unsupported geometry type: {geom.geom_type}")
 
-        return np.array(list_of_extra_points)
+        return np.array(list_of_selected_points)
 
     # Apply to your geometries
-    geoms = [intersection_lowwl, intersection_highwl, intersection_groundlvl, intersection_bot_l1, intersection_bot_l2]
-    locs = ['low', 'low', 'low', 'low', 'low']
-    extra_points_on_slope = get_extra_points(geoms, locs)
-    gl_land_pts = get_extra_points([intersection_groundlvl], ['high'])
+    geoms = [intersection_lowwl, intersection_highwl, intersection_groundlvl, intersection_groundlvl,
+             intersection_bot_l1, intersection_bot_l2]
+    locs = ['left', 'left', 'left', 'right', 'left', 'left']
+    extra_points_on_slope = select_point_from_intersection(geoms, locs)
 
     # Construct cover_inside_points output
-    offset_pts_low2crest = [p for p in offset_pts if p[1] > low_wl][:-4]  # above low_wl & not including crest
+    offset_pts_low2crest = [p for p in offset_pts if p[1] > low_wl][:-2]  # above low_wl &  including crest
     unsorted_pts = np.vstack((offset_pts_low2crest, extra_points_on_slope))
-    sorted_pts = np.vstack(sorted(unsorted_pts, key=lambda x: x[1]))  # Sort by y-coordinate
-    cover_inside_pts = np.vstack((sorted_pts, offset_pts[-3:-1], gl_land_pts))
+    sorted_pts = np.vstack(sorted(unsorted_pts, key=lambda x: x[0]))  # Sort by x-coordinate
+    cover_inside_pts = [p for p in sorted_pts if p[1] >= low_wl]
     return cover_inside_pts
 
 
