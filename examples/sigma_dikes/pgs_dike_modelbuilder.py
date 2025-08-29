@@ -10,8 +10,7 @@ USes:
 
 import pandas as pd
 import numpy as np
-from shapely.geometry import LineString, MultiPoint
-from shapely.ops import substring
+from shapely.geometry import LineString
 
 
 def get_profile_points_from_quantile_excel(excel_filepath, q_value, notes=None):
@@ -56,7 +55,7 @@ def make_landside_horizontal(points):
     return np.vstack((points[:-1], [[xmin1, ymin1]]))
 
 
-def calc_soillayers_bottom_levels (profile_points, scenario, low_wl):
+def calc_soillayers_bottom_levels(profile_points, scenario, low_wl, clay_layer_t):
     """
     Return soil subground layer bottom levels (Y-values) per scenario; clay thickness is always 0.5m
     Scenrios:
@@ -66,36 +65,36 @@ def calc_soillayers_bottom_levels (profile_points, scenario, low_wl):
     s3: Sand dike – All clay layers                   -> two 0.5 m clay bands from GL downward
      Returns (y_top_level, y_mid_level) where any missing level is None.
     """
-    # refs
+    def clamp(y):
+        return max(min(y, gl_y), bottom_layer3)
+
+    # variables
     toe_y = profile_points[1][1]
     crest_y = profile_points[3][1]
-    bottom_y = toe_y - 3.0 * (crest_y - toe_y)
-    def clamp(y):
-        return max(min(y, crest_y), bottom_y)
+    gl_y = profile_points[6][1]
+    bottom_layer3 = toe_y - 3.0 * (crest_y - toe_y)
+    h_subground = gl_y - bottom_layer3
+
+    #  defining the levels based on scenarios
     key = str(scenario).strip().lower()
     if key.startswith("s"):
         key = key[1:]
-    if key == '0':
-        H = crest_y - bottom_y
-        bottom_layer1 = clamp((crest_y-H/3.0))
-        bottom_layer2 = clamp(crest_y - 2.0*H/3)
-        bottom_layer3 = bottom_y
+    if key == '0':          # Equally divide all 3 subground layers
+        bottom_layer1 = clamp(gl_y-h_subground/3.0)
+        bottom_layer2 = clamp(bottom_layer1 - h_subground/3)
         return bottom_layer1, bottom_layer2, bottom_layer3
-    if key == '1':
-        bottom_layer1 = clamp(crest_y - 0.5)
-        rem = bottom_layer1 - bottom_y
-        bottom_layer2 = clamp(crest_y - rem / 2.0)
-        bottom_layer3 = bottom_y
+    if key == '1':  # first set clay layer, then Equally divide the remaining 2 subground layers
+        bottom_layer1 = clamp(gl_y - clay_layer_t)
+        rem = bottom_layer1 - bottom_layer3
+        bottom_layer2 = clamp(bottom_layer1 - rem / 2.0)
         return bottom_layer1, bottom_layer2, bottom_layer3
     if key == '2':
         bottom_layer1 = clamp(float(low_wl)-1.0)
         bottom_layer2 = clamp(bottom_layer1-0.5)
-        bottom_layer3 = bottom_y
         return bottom_layer1, bottom_layer2, bottom_layer3
     if key == '3':
-        bottom_layer1 = clamp(crest_y-0.5)
-        bottom_layer2 = clamp (bottom_layer1 - 0.5)
-        bottom_layer3 = bottom_y
+        bottom_layer1 = clamp(gl_y - h_subground / 3.0)
+        bottom_layer2 = clamp(bottom_layer1 - h_subground / 3)
         return bottom_layer1, bottom_layer2, bottom_layer3
 
 
