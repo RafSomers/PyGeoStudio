@@ -16,7 +16,7 @@ main_path = r"C:\Users\WQ5783\OneDrive - ENGIE\5_PyProjects\PyGeoStudio"
 analysis_type = 'A0'
 river_id = 'R0'
 quantile_id = 'Q0'
-soil_id = 'S2'
+soil_id = 'S1'
 xtra_id = 'X1'
 # todo: variables to be set automatically based unique scenario_id)
 quantile = 0.5

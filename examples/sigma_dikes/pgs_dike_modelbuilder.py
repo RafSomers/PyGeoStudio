@@ -65,37 +65,26 @@ def calc_soillayers_bottom_levels(profile_points, scenario, low_wl, clay_layer_t
     s3: Sand dike – All clay layers                   -> two 0.5 m clay bands from GL downward
      Returns (y_top_level, y_mid_level) where any missing level is None.
     """
-    def clamp(y):
-        return max(min(y, gl_y), bottom_layer3)
-
-    # variables
     toe_y = profile_points[1][1]
     crest_y = profile_points[3][1]
     gl_y = profile_points[6][1]
     bottom_layer3 = toe_y - 3.0 * (crest_y - toe_y)
     h_subground = gl_y - bottom_layer3
-
-    #  defining the levels based on scenarios
-    key = str(scenario).strip().lower()
-    if key.startswith("s"):
-        key = key[1:]
-    if key == '0':          # Equally divide all 3 subground layers
-        bottom_layer1 = clamp(gl_y-h_subground/3.0)
-        bottom_layer2 = clamp(bottom_layer1 - h_subground/3)
+    if scenario in ['S0', 'S3']:  # Then, equally divide all 3 subground layers
+        bottom_layer1 = gl_y - h_subground / 3.0
+        bottom_layer2 = bottom_layer1 - h_subground / 3.0
         return bottom_layer1, bottom_layer2, bottom_layer3
-    if key == '1':  # first set clay layer, then Equally divide the remaining 2 subground layers
-        bottom_layer1 = clamp(gl_y - clay_layer_t)
+    elif scenario == 'S1':  # first set clay layer, then Equally divide the remaining 2 subground layers
+        bottom_layer1 = gl_y - clay_layer_t
         rem = bottom_layer1 - bottom_layer3
-        bottom_layer2 = clamp(bottom_layer1 - rem / 2.0)
+        bottom_layer2 = bottom_layer1 - rem / 2.0
         return bottom_layer1, bottom_layer2, bottom_layer3
-    if key == '2':
-        bottom_layer1 = clamp(float(low_wl)-1.0)
-        bottom_layer2 = clamp(bottom_layer1-0.5)
+    elif scenario == 'S2':
+        bottom_layer1 = float(low_wl)-1.0
+        bottom_layer2 = bottom_layer1-clay_layer_t
         return bottom_layer1, bottom_layer2, bottom_layer3
-    if key == '3':
-        bottom_layer1 = clamp(gl_y - h_subground / 3.0)
-        bottom_layer2 = clamp(bottom_layer1 - h_subground / 3)
-        return bottom_layer1, bottom_layer2, bottom_layer3
+    else:
+        raise ValueError("Scenario not properly defined! Should be 'S0', 'S1', 'S2' or 'S3'.")
 
 
 def calc_cover_layer_points(profile_points, inward_thickness, low_wl, high_wl, bot_l1, bot_l2):
