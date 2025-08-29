@@ -377,13 +377,12 @@ def calc_subground_layers_points(points, y_top_level, y_mid_level, cover_line_pt
     return np.vstack((top_pts, mid_pts, bot_pts))
 
 
-def update_profile_points(profile_pts, low_wl, high_wl, g_lvl, bot_l1, bot_l2):
+def update_profile_points(profile_pts, low_wl, high_wl, bot_l1, bot_l2):
     """
     Adds new points on the river slope at low water level, high water level and ground level.
     :param profile_pts:  List of [x, y] coordinate pairs.
     :param low_wl: low water level
     :param high_wl: high water level
-    :param g_lvl: ground level
     :param bot_l1: bottom of layer 1
     :param bot_l2: bottom of layer 2
     :return: New list of points with the interpolated points inserted
@@ -399,9 +398,11 @@ def update_profile_points(profile_pts, low_wl, high_wl, g_lvl, bot_l1, bot_l2):
             raise ValueError("Cannot interpolate! Point not on slope!")
         print("new  x : ", new_x)
         return new_x
+    # variables
     p2 = profile_pts[1]  # bottom of river slope
     p3 = profile_pts[2]  # midpoint of river slope
     p4 = profile_pts[3]  # top of river slope
+    g_lvl = profile_pts[6][1]  # ground level
     x2, y2 = p2
     x3, y3 = p3
     x4, y4 = p4

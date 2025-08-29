@@ -58,8 +58,7 @@ slurry_outside_pts = pgs_mb.calc_slurry_layer_points(profile_pts, cover_thicknes
 
 # Add extra points to surface points
 # todo: update function to create additional points(lowwl, highwl, gl, layer1, layer2) (done)
-ground_lvl = profile_pts[6][1]
-updated_profile_pts = pgs_mb.update_profile_points(profile_pts, low_wl, high_wl, ground_lvl, bot_l1, bot_l2)
+updated_profile_pts = pgs_mb.update_profile_points(profile_pts, low_wl, high_wl, bot_l1, bot_l2)
 
 # todo: add points that correspond to the right side of the model to layer 1, 2, 3 (done)
 # add right side boundary points
