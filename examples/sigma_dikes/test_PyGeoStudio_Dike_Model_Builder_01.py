@@ -16,13 +16,15 @@ main_path = r"C:\Users\WQ5783\OneDrive - ENGIE\5_PyProjects\PyGeoStudio"
 analysis_type = 'A0'
 river_id = 'R0'
 quantile_id = 'Q0'
-soil_id = 'S1'
+soil_id = 'S2'
 xtra_id = 'X1'
 # todo: variables to be set automatically based unique scenario_id)
 quantile = 0.5
 quantile_excel_filepath = main_path + "/" + r"examples\sigma_dikes" + "/" + "cross_sections_schelde_quantiles.xlsx"
 low_wl, high_wl = 0.23, 5.65
+cover_present = True
 cover_thickness = 0.5
+clay_layer_thickness = 0.5
 
 
 # Create empty GSZ file
@@ -42,26 +44,41 @@ _, profile_pts, _ = pgs_mb.get_profile_points_from_quantile_excel(quantile_excel
 profile_pts = pgs_mb.make_landside_horizontal(profile_pts)
 
 # Get soil levels
-bot_l1, bot_l2, bot_l3 = pgs_mb.calc_soillayers_bottom_levels(profile_pts, soil_id, low_wl)
+bot_l1, bot_l2, bot_l3 = pgs_mb.calc_soillayers_bottom_levels(profile_pts, soil_id, low_wl, clay_layer_thickness)
 print("soil levels:", bot_l1, bot_l2, bot_l3)
 
-# Creqte cover lqyer
-# todo: Code is working with no errors, but points are not created correctly
+# Create cover layer
 cover_inside_pts = pgs_mb.calc_cover_layer_points(profile_pts, cover_thickness, low_wl, high_wl, bot_l1, bot_l2)
 
 # Create slurry layer
-# todo: Update similarly as calc_cover_layer_points
-# slurry_outside_pts = pgs_mb.calc_slurry_layer_points(profile_pts, 0.50, low_wl)
-# geometry.addPoints(slurry_outside_pts)
+# todo: Raf check code in pgs_mb
+slurry_outside_pts = pgs_mb.calc_slurry_layer_points(profile_pts, cover_thickness, low_wl)
 
-# Add extra points to surface points
-# xtra_profile_pts = pgs_mb.add_extra_points_on_river_slope(profile_pts, low_wl, high_wl)
+# Update profile points (add extra ones)
+updated_profile_pts = pgs_mb.update_profile_points(profile_pts, low_wl, high_wl, bot_l1, bot_l2)
+
+
+# add bottom of layer points if on model boundary (left or right)
+# todo: Raf check code in pgs_mb for points that correspond to the bottom of layer 1, 2, 3
+right_boundary_pts = pgs_mb.add_right_side_layer_points(profile_pts, bot_l1, bot_l2, bot_l3)
+left_boundary_pts = pgs_mb.add_left_side_layer_points(profile_pts, bot_l1, bot_l2, bot_l3)
+
+# Add hydraulic bpoundary lines
+# todo: Split into two hyd_boundary lines (1) river bed up to HW & (2) ground level at land side
+hyd_boundary_lns = [[i, i+1] for i in range(1, len(updated_profile_pts))]  # always last in updated_profile_pts
+# hyd boundary 2
+
+# todo: Prepare list that contain the points for specific regions
 
 # Check geometry
-geometry.addPoints(profile_pts)
-geometry.addPoints(cover_inside_pts)
+geometry.addPoints(updated_profile_pts)  # includes profile_points
+geometry.addPoints(cover_inside_pts)    # cover layer
+geometry.addPoints(slurry_outside_pts)  # slurry layer
+geometry.addPoints(right_boundary_pts)  # right boundary points
+geometry.addPoints(left_boundary_pts)   # left boundary points
+geometry.addLines(hyd_boundary_lns)
 print(geometry.point_table)
-fig, ax = geometry.draw()
+fig, ax = geometry.draw()   # todo: do we still need the plot?
 plt.show()
 
 
