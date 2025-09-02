@@ -235,7 +235,7 @@ class Analysis(BasePropertiesClass):
     if "Geometry" not in self.data:
       print("No geometry defined, thus can't show problem.")
       return
-    fig, ax = self.data["Geometry"].draw(show=False)
+    fig, ax = self.data["Geometry"].draw()
 
     if "Context" not in self.data:
       raise KeyError("Analysis not properly defined. 'Context' is not available in data.")
