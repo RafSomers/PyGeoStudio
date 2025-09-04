@@ -119,7 +119,8 @@ def calc_cover_layer_points(profile_points, inward_thickness, low_wl, high_wl, b
     l2_left, l2_right = [profile_points[0][0], bot_l2], [profile_points[-1][0], bot_l2]
 
     # Construct shapely.geometry.LineString objects
-    profile_ls = LineString(profile_points)
+    dike_points = profile_points[1:6]  # no river bed, no ground level
+    dike_ls = LineString(dike_points)
     trim_lowwl_ls = LineString([lw_left, lw_right])
     trim_highwl_ls = LineString([hw_left, hw_right])
     trim_groundlvl_ls = LineString([gl_left, gl_right])
@@ -127,7 +128,7 @@ def calc_cover_layer_points(profile_points, inward_thickness, low_wl, high_wl, b
     trim_bot_l2_ls = LineString([l2_left, l2_right])
 
     # Create offset LimeString and points list
-    offset_ls = profile_ls.parallel_offset(inward_thickness, side='right', join_style=2)
+    offset_ls = dike_ls.parallel_offset(inward_thickness, side='right', join_style=2)
     offset_pts = [list(tup) for tup in list(offset_ls.coords)]
 
     # Get intersectiuons
@@ -167,7 +168,7 @@ def calc_cover_layer_points(profile_points, inward_thickness, low_wl, high_wl, b
     extra_points_on_slope = select_point_from_intersection(geoms, locs)
 
     # Construct cover_inside_points output
-    offset_pts_low2crest = [p for p in offset_pts if p[1] > low_wl][:-2]  # above low_wl &  including crest
+    offset_pts_low2crest = [p for p in offset_pts if p[1] > low_wl][:-1]  # above low_wl &  including crest
     unsorted_pts = np.vstack((offset_pts_low2crest, extra_points_on_slope))
     sorted_pts = np.vstack(sorted(unsorted_pts, key=lambda x: x[0]))  # Sort by x-coordinate
     cover_inside_pts = [p for p in sorted_pts if p[1] >= low_wl]
@@ -180,9 +181,6 @@ def calc_slurry_layer_points(profile_points, outward_thickness, low_wl):
     :param profile_points: List of [x, y] coordinate pairs.
     :param outward_thickness: Offset thickness (positive inward).
     :param low_wl
-    :param high_wl
-    :param bot_l1
-    :param bot_l2
     :return: List of [x, y] points of the trimmed offset line.
     """
     # Variables
@@ -234,7 +232,7 @@ def calc_slurry_layer_points(profile_points, outward_thickness, low_wl):
             else:
                 raise ValueError(f"Unsupported geometry type: {geom.geom_type}")
         # keep shape 2D so vstack never fails
-        return np.array(list_of_extra_points, dtype=float).reshape(-1, 2)
+        return np.array(list_of_extra_points).reshape(-1, 2)
 
     geoms = [intersection_lowwl]
     locs  = ['low', 'low', 'low']
@@ -242,7 +240,7 @@ def calc_slurry_layer_points(profile_points, outward_thickness, low_wl):
 
     # Construct slurry_outside_points output
     # keep only points BELOW low water (slurry sits below LWL); no crest part here
-    offset_pts_left2low = np.array([p for p in offset_pts if p[1] <= low_wl], dtype=float).reshape(-1, 2)
+    offset_pts_left2low = np.array([p for p in offset_pts if p[1] <= low_wl]).reshape(-1, 2)
     unsorted_pts = np.vstack((offset_pts_left2low, extra_points_on_slope))
     sorted_pts = np.vstack(sorted(unsorted_pts, key=lambda x: x[1]))  # sort by y
     slurry_outside_pts = np.vstack((sorted_pts,))
@@ -383,6 +381,7 @@ def update_profile_points(profile_pts, low_wl, high_wl, bot_l1, bot_l2):
     :param profile_pts:  List of [x, y] coordinate pairs.
     :param low_wl: low water level
     :param high_wl: high water level
+    :param g_lvl: ground level
     :param bot_l1: bottom of layer 1
     :param bot_l2: bottom of layer 2
     :return: New list of points with the interpolated points inserted
@@ -398,19 +397,18 @@ def update_profile_points(profile_pts, low_wl, high_wl, bot_l1, bot_l2):
             raise ValueError("Cannot interpolate! Point not on slope!")
         print("new  x : ", new_x)
         return new_x
-    # variables
     p2 = profile_pts[1]  # bottom of river slope
     p3 = profile_pts[2]  # midpoint of river slope
     p4 = profile_pts[3]  # top of river slope
-    g_lvl = profile_pts[6][1]  # ground level
+    g_lvl = profile_pts[6][1] # ground level
     x2, y2 = p2
     x3, y3 = p3
     x4, y4 = p4
-    y_targets = sorted([low_wl, high_wl, y3, g_lvl])  # Add y3 to place at correct position, when sorted
+    y_targets = [low_wl, high_wl, y3, g_lvl]  # Add y3 to place at correct position, when sorted
     if min(y2, y4) < bot_l1 <= max(y2, y4):
-        y_targets.append(bot_l1)
+        y_targets.append(bot_l1)        # only on the slope
     if min(y2, y4) < bot_l2 <= max(y2, y4):
-        y_targets.append(bot_l2)
+        y_targets.append(bot_l2)        # only on the slope
     y_targets = sorted(y_targets)
     interpolated_points = np.array([[interpolate_x(y), y] for y in y_targets])
     new_points = np.vstack((profile_pts[:2], interpolated_points, profile_pts[3:]))   # Insert between p2 en p4
@@ -442,7 +440,30 @@ def add_left_side_layer_points(profile_pts, bot_l1, bot_l2, bot_l3):
     :param bot_l3: Bottom elevation of layer 3.
     :return: array of [x, y] points on the right border.
     """
+    # left border x
     left_x = profile_pts[0][0]
+    # toe level
     toe_y = profile_pts[1][1]
+    # check whether high or lower than toe
     layer_left_pts = np.array([[left_x, y] for y in (bot_l1, bot_l2) if y < toe_y] + [[left_x, bot_l3]])
     return layer_left_pts
+
+
+def get_river_boundary_lines(updated_profile_points, high_wl):
+    """
+    Adds new boundary lines on the river bed until high water level, and ground level on the right side.
+    :param updated_profile_points:  List of [x, y] coordinate pairs.
+    :param high_wl: high water level
+    """
+
+    high_wl_pt_num = len(np.array([p for p in updated_profile_points if p[1] <= high_wl]))
+    return [[i, i + 1] for i in range(1, high_wl_pt_num)]
+
+
+def get_ground_water_boundary_lines(updated_profile_points):
+    """
+    Adds new boundary lines on the river bed until high water level, and ground level on the right side.
+    :param updated_profile_points:  List of [x, y] coordinate pairs.
+    """
+    n = len(updated_profile_points)
+    return [[n - 1, n]] # last → previous (ground level to right border)
