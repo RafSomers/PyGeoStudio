@@ -47,6 +47,7 @@ class GeoStudioFile:
     self.geometries = []
     self.meshes = []
     self.analyses = []
+    self.bcs = []
     self.contexts = []
     self.datasets = []
     self.materials = []
@@ -114,6 +115,9 @@ class GeoStudioFile:
       elif element.tag == "Analyses":
         self.__readAnalysis__(element)
         self.xml_items.append("Analyses")
+      elif element.tag == "BCs":
+        self.__readBCs__(element)
+        self.xml_items.append(element)
       elif element.tag == "Contexts":
         #context define the material properties associated with the analysis and BC
         self.__readContexts__(element)
@@ -190,6 +194,13 @@ class GeoStudioFile:
     for i in range(self.n_analysis):
       new_analysis = Analysis(element[i])
       self.analyses.append(new_analysis)
+    return
+
+  def __readBCs__(self,element):
+    self.n_bcs = int(element.attrib["Len"])
+    for i in range(self.n_bcs):
+      new_bcs = element[i].attrib
+      self.bcs.append(new_bcs)
     return
 
   def __readContexts__(self, element):
@@ -308,6 +319,25 @@ class GeoStudioFile:
     """
     if ID > len(self.geometries): raise ValueError(f"No such geometry with ID {ID}")
     return self.geometries[ID-1]
+
+  def showBoundaryConditions(self):
+    """
+    Print the boundary conditions defined within the GeoStudio file.
+    """
+    for bc in self.bcs: # print the bc name properties
+      print("ID:", bc["ID"])
+      print("Name:", bc["Name"])
+      if len(bc) > 3:  # BC with key on pos 3 that defines type
+        if len(bc) == 5:  # Displacement type of boundary condition
+          key_at_pos_3 = list(bc.keys())[3]
+          print(key_at_pos_3 + ":", bc[key_at_pos_3])
+          key_at_pos_4 = list(bc.keys())[4]
+          print(key_at_pos_4 + ":", bc[key_at_pos_4])
+        elif len(bc) == 4:  # Other type
+          key_at_pos_3 = list(bc.keys())[3]  # Here more info on bc, like type & parameters is available
+          print(key_at_pos_3 + ":", bc[key_at_pos_3])
+    return
+
 
   def showMaterials(self, detail=0):
     """
