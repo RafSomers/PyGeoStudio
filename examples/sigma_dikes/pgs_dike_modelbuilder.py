@@ -118,7 +118,7 @@ def calc_cover_layer_points(profile_points, inward_thickness, low_wl, high_wl, b
     offset_ls = dike_ls.parallel_offset(inward_thickness, side='right', join_style=2)
     offset_pts = [list(tup) for tup in list(offset_ls.coords)]
 
-    # Get intersectiuons
+    # Get intersections
     intersection_lowwl = offset_ls.intersection(trim_lowwl_ls)
     intersection_highwl = offset_ls.intersection(trim_highwl_ls)
     intersection_groundlvl = offset_ls.intersection(trim_groundlvl_ls)
@@ -155,7 +155,7 @@ def calc_cover_layer_points(profile_points, inward_thickness, low_wl, high_wl, b
     extra_points_on_slope = select_point_from_intersection(geoms, locs)
 
     # Construct cover_inside_points output
-    offset_pts_low2crest = [p for p in offset_pts if p[1] > low_wl][:-2]  # above low_wl &  including crest
+    offset_pts_low2crest = [p for p in offset_pts if p[1] > low_wl][:-1]  # above low_wl, but not offset of landside
     unsorted_pts = np.vstack((offset_pts_low2crest, extra_points_on_slope))
     sorted_pts = np.vstack(sorted(unsorted_pts, key=lambda x: x[0]))  # Sort by x-coordinate
     cover_inside_pts = [p for p in sorted_pts if p[1] >= low_wl]
@@ -163,36 +163,76 @@ def calc_cover_layer_points(profile_points, inward_thickness, low_wl, high_wl, b
 
 
 # todo: test and update functions below
-def calc_slurry_layer_points(points, outward_thickness, low_wl):
+def calc_slurry_layer_points(profile_points, outward_thickness, low_wl):
     """
-    Get points on outside of slurry layer.
-    Slurry layer is on outside of dike between left border of model & low water level.
-    :param points: List of [x, y] coordinate pairs of surface line.
+    Generate an offset slurry layer line between start_id and end_id, trimmed to line between the start and end points.
+    :param profile_points: List of [x, y] coordinate pairs.
     :param outward_thickness: Offset thickness (positive inward).
-    :param low_wl: Low water level.
-    :return: List of [x, y] points of inside of cover layer.
+    :param low_wl
+    :return: List of [x, y] points of the trimmed offset line.
     """
-    # Check points[2] to points[5] for low_wl and groundlevel match
-    start_index_slurry = None
-    for i in range(2, 6):
-        if np.isclose(points[i][1], low_wl):
-            start_index_slurry = i
-            break
-    # Construct shapely.geometry.LineString object to do offset on outside of slurry layer and trim on low water lvl
-    if start_index_slurry is not None:
-        slurry_out_ls = LineString(points[0:start_index_slurry+1])
-        trim_lowwl_ls = LineString([points[start_index_slurry], [points[0][0], low_wl]])
+    # Variables
+    lw_left, lw_right = [profile_points[0][0], low_wl], [profile_points[-1][0], low_wl]
+
+    # Construct shapely.geometry.LineString objects
+    profile_ls_full = LineString(profile_points)
+    trim_lowwl_ls = LineString([lw_left, lw_right])
+
+    # find the low-water point on the original profile (leftmost intersection)
+    _lw_inter = profile_ls_full.intersection(trim_lowwl_ls)
+    if _lw_inter.is_empty:
+        raise ValueError("Cannot locate low water on profile.")
+    if _lw_inter.geom_type == 'Point':
+        lw_pt = list(_lw_inter.coords[0])
+    elif _lw_inter.geom_type == 'MultiPoint':
+        pts = [list(g.coords[0]) for g in _lw_inter.geoms]
+        lw_pt = sorted(pts, key=lambda x: x[0])[0]
+    elif _lw_inter.geom_type == 'LineString':
+        lw_pt = list(_lw_inter.coords[0])
     else:
-        raise ValueError("Cannot create offset linestring! Low water is not in points 3 to 5!")
-    # Create offset
-    offset_ls = slurry_out_ls.parallel_offset(outward_thickness, side='left', join_style=2)
-    # Trim offset on low_wl
-    intersection_lowwl = offset_ls.intersection(trim_lowwl_ls)
-    # Create slurry outside points (start from offset's first point; no left-border trim)
+        # fall back to first available coordinate
+        lw_pt = list(list(_lw_inter.geoms)[0].coords[0])
+
+    # source polyline for slurry: left border → river toe → low-water on slope
+    profile_ls = LineString([profile_points[0], profile_points[1], lw_pt])
+
+    # Create offset LineString and points list (to the LEFT so riverbed part is above)
+    offset_ls = profile_ls.parallel_offset(outward_thickness, side='left', join_style=2)
     offset_pts = [list(tup) for tup in list(offset_ls.coords)]
-    offset_new_last_pt = [list(tup) for tup in list(intersection_lowwl.coords)]
-    offset_pts = [p for p in offset_pts if p[1] < low_wl]
-    slurry_outside_pts = np.vstack((offset_pts, offset_new_last_pt[0]))
+
+    # Get intersections
+    intersection_lowwl = offset_ls.intersection(trim_lowwl_ls)
+
+    # Get points from intersections
+    def get_extra_points(list_of_geoms, list_of_locs):
+        list_of_extra_points = []
+        for geom, loc in zip(list_of_geoms, list_of_locs):
+            if geom.is_empty:
+                continue
+            elif geom.geom_type == 'Point':
+                list_of_extra_points.append(list(geom.coords[0]))
+            elif geom.geom_type == 'MultiPoint':
+                all_mpts_tuple_list = [pt_geom.coords[0] for pt_geom in geom.geoms]
+                all_mpts = [list(tup) for tup in all_mpts_tuple_list]
+                sorted_mpts = sorted(all_mpts, key=lambda x: x[0])
+                if loc in ['low', 'high']:
+                    list_of_extra_points.append(sorted_mpts[0])  # river-side = leftmost
+            else:
+                raise ValueError(f"Unsupported geometry type: {geom.geom_type}")
+        # keep shape 2D so vstack never fails
+        return np.array(list_of_extra_points).reshape(-1, 2)
+
+    geoms = [intersection_lowwl]
+    locs  = ['low', 'low', 'low']
+    extra_points_on_slope = get_extra_points(geoms, locs)
+
+    # Construct slurry_outside_points output
+    # keep only points BELOW low water (slurry sits below LWL); no crest part here
+    offset_pts_left2low = np.array([p for p in offset_pts if p[1] <= low_wl]).reshape(-1, 2)
+    unsorted_pts = np.vstack((offset_pts_left2low, extra_points_on_slope))
+    sorted_pts = np.vstack(sorted(unsorted_pts, key=lambda x: x[1]))  # sort by y
+    slurry_outside_pts = np.vstack((sorted_pts,))
+    slurry_outside_pts = slurry_outside_pts[slurry_outside_pts[:, 1] <= low_wl]
     return slurry_outside_pts
 
 
@@ -285,13 +325,90 @@ def calc_subground_layers_points(points, y_top_level, y_mid_level, cover_line_pt
     # Return all in one array (top, middle, bottom)
     return np.vstack((top_pts, mid_pts, bot_pts))
 
+def calc_subground_layers_points(points, y_top_level, y_mid_level, cover_line_pts=None):
+    """
+    Make three subground layer lines (levels only).
+    Top & middle: left point is on COVER at that Y if available; else on SLOPE.
+    For any level below the slope toe, the left point is on the LEFT BORDER at that Y.
+    Bottom runs from right boundary to LEFT border at the bottom border elevation.
+    :param points: List of [x, y] surface points.
+    :param y_top_level: Absolute Y for the top layer line.
+    :param y_mid_level: Absolute Y for the middle layer line.
+    :param cover_line_pts: Nx2 cover polyline points (from calc_cover_layer_points). Optional.
+    :return: Nx2 array of [x, y] points for all three layer lines (top, middle, bottom).
+    """
+    # Geometry references
+    toe_x, toe_y = points[1][0], points[1][1]
+    grd_x, grd_y = points[6][0], points[6][1]
+    left_x = points[0][0]
+    right_x = points[-1][0]
 
-def add_extra_points_on_river_slope(points, low_wl, high_wl):
+    # Bottom border (3x slope height below toe)
+    slope_h = grd_y - toe_y
+    bottom_y = toe_y - 3 * slope_h
+
+    # Clamp levels to [bottom_y, grd_y]
+    def _clamp(y): return max(min(y, grd_y), bottom_y)
+    y_top = _clamp(y_top_level)
+    y_mid = _clamp(y_mid_level)
+    y_bot = bottom_y
+
+    # x on SLOPE (points 1..8) at a given y (with clamping)
+    def _x_on_slope(y):
+        if y <= toe_y: return toe_x
+        if y >= grd_y: return grd_x
+        for i in range(1, 8):
+            x0, y0 = points[i]
+            x1, y1 = points[i + 1]
+            if np.isclose(y, y0): return x0
+            if np.isclose(y, y1): return x1
+            if (y0 - y) * (y1 - y) < 0:
+                t = (y - y0) / (y1 - y0)
+                return x0 + t * (x1 - x0)
+        return grd_x
+
+    # x on a polyline at Y by segment interpolation (returns None if Y not covered)
+    def _x_on_polyline_at_y(poly_pts, y):
+        for i in range(len(poly_pts) - 1):
+            x0, y0 = poly_pts[i]
+            x1, y1 = poly_pts[i + 1]
+            if np.isclose(y, y0): return x0
+            if np.isclose(y, y1): return x1
+            if np.isclose(y0, y1) and np.isclose(y, y0):
+                return min(x0, x1)
+            if (y0 - y) * (y1 - y) < 0:
+                t = (y - y0) / (y1 - y0)
+                return x0 + t * (x1 - x0)
+        return None
+
+    # Left-side X at Y: if below toe -> LEFT BORDER; else COVER if hits, else SLOPE
+    def _x_left_at_y(y):
+        if y <= toe_y:
+            return left_x
+        if cover_line_pts is not None and len(cover_line_pts) >= 2:
+            xi = _x_on_polyline_at_y(cover_line_pts, y)
+            if xi is not None:
+                return xi
+        return _x_on_slope(y)
+
+    # Build 2-point lines for each layer
+    top_pts = np.vstack(([right_x, y_top], [_x_left_at_y(y_top), y_top]))
+    mid_pts = np.vstack(([right_x, y_mid], [_x_left_at_y(y_mid), y_mid]))
+    bot_pts = np.vstack(([right_x, y_bot], [left_x, y_bot]))
+
+    # Return all in one array (top, middle, bottom)
+    return np.vstack((top_pts, mid_pts, bot_pts))
+
+
+def update_profile_points(profile_pts, low_wl, high_wl, bot_l1, bot_l2):
     """
     Adds new points on the river slope at low water level, high water level and ground level.
-    :param points:  List of [x, y] coordinate pairs.
+    :param profile_pts:  List of [x, y] coordinate pairs.
     :param low_wl: low water level
     :param high_wl: high water level
+    :param g_lvl: ground level
+    :param bot_l1: bottom of layer 1
+    :param bot_l2: bottom of layer 2
     :return: New list of points with the interpolated points inserted
     """
     # Helper function for linear interpolation
@@ -305,16 +422,73 @@ def add_extra_points_on_river_slope(points, low_wl, high_wl):
             raise ValueError("Cannot interpolate! Point not on slope!")
         print("new  x : ", new_x)
         return new_x
-    p2 = points[1]  # bottom of river slope
-    p3 = points[2]  # midpoint of river slope
-    p4 = points[3]  # top of river slope
-    ground_lvl = points[5][1]  # bottom of land slope = ground level
+    p2 = profile_pts[1]  # bottom of river slope
+    p3 = profile_pts[2]  # midpoint of river slope
+    p4 = profile_pts[3]  # top of river slope
+    g_lvl = profile_pts[6][1] # ground level
     x2, y2 = p2
     x3, y3 = p3
     x4, y4 = p4
-    y_targets = sorted([low_wl, high_wl, y3, ground_lvl])  # Add y3 to place at correct position, when sorted
+    y_targets = [low_wl, high_wl, y3, g_lvl]  # Add y3 to place at correct position, when sorted
+    if min(y2, y4) < bot_l1 <= max(y2, y4):
+        y_targets.append(bot_l1)        # only on the slope
+    if min(y2, y4) < bot_l2 <= max(y2, y4):
+        y_targets.append(bot_l2)        # only on the slope
+    y_targets = sorted(y_targets)
     interpolated_points = np.array([[interpolate_x(y), y] for y in y_targets])
-    new_points = np.vstack((points[:2], interpolated_points, points[3:]))   # Insert between p2 en p4
+    new_points = np.vstack((profile_pts[:2], interpolated_points, profile_pts[3:]))   # Insert between p2 en p4
     return new_points
 
 
+def add_right_side_layer_points(profile_pts, bot_l1, bot_l2, bot_l3):
+    """
+    Add points on the right border at the bottoms of layers 1, 2, and 3.
+    :param profile_pts: List of [x, y] coordinate pairs (full profile).
+    :param bot_l1: Bottom elevation of layer 1.
+    :param bot_l2: Bottom elevation of layer 2.
+    :param bot_l3: Bottom elevation of layer 3.
+    :return: 3x2 array of [x, y] points on the right border.
+    """
+    # Right border x
+    right_x = profile_pts[-1][0]
+    # Points on right side for each layer bottom
+    layer_right_pts = np.array([[right_x, bot_l1], [right_x, bot_l2], [right_x, bot_l3]])
+    return layer_right_pts
+
+
+def add_left_side_layer_points(profile_pts, bot_l1, bot_l2, bot_l3):
+    """
+    Add points on the right border at the bottoms of layers 1, 2, and 3.
+    :param profile_pts: List of [x, y] coordinate pairs (full profile).
+    :param bot_l1: Bottom elevation of layer 1.
+    :param bot_l2: Bottom elevation of layer 2.
+    :param bot_l3: Bottom elevation of layer 3.
+    :return: array of [x, y] points on the right border.
+    """
+    # left border x
+    left_x = profile_pts[0][0]
+    # toe level
+    toe_y = profile_pts[1][1]
+    # check whether high or lower than toe
+    layer_left_pts = np.array([[left_x, y] for y in (bot_l1, bot_l2) if y < toe_y] + [[left_x, bot_l3]])
+    return layer_left_pts
+
+
+def get_river_boundary_lines(updated_profile_points, high_wl):
+    """
+    Adds new boundary lines on the river bed until high water level, and ground level on the right side.
+    :param updated_profile_points:  List of [x, y] coordinate pairs.
+    :param high_wl: high water level
+    """
+
+    high_wl_pt_num = len(np.array([p for p in updated_profile_points if p[1] <= high_wl]))
+    return [[i, i + 1] for i in range(1, high_wl_pt_num)]
+
+
+def get_ground_water_boundary_lines(updated_profile_points):
+    """
+    Adds new boundary lines on the river bed until high water level, and ground level on the right side.
+    :param updated_profile_points:  List of [x, y] coordinate pairs.
+    """
+    n = len(updated_profile_points)
+    return [[n - 1, n]] # last → previous (ground level to right border)
