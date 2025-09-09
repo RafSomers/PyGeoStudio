@@ -158,7 +158,6 @@ def calc_cover_layer_points(profile_points, inward_thickness, low_wl, high_wl, b
                     raise ValueError(f"location should be left or right")
             else:
                 raise ValueError(f"Unsupported geometry type: {geom.geom_type}")
-
         return np.array(list_of_selected_points)
 
     # Apply to your geometries

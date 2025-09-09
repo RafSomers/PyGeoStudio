@@ -17,13 +17,13 @@ Full_code = 'A0-R0-C0-S3-X1-Y0'
 analysis_type = 'A0'
 river_id = 'R0'
 quantile_id = 'C0'
-soil_id = 'S2'
+soil_id = 'S0'
 xtra_id = 'X1'
 cover_variation_id = 'Y0'
 # todo: variables to be set automatically based unique scenario_id)
 quantile = 0.5
 quantile_excel_filepath = main_path + "/" + r"examples\sigma_dikes" + "/" + "cross_sections_schelde_quantiles.xlsx"
-low_wl, high_wl = 4.00, 5.65
+low_wl, high_wl = 1.643332, 5.65
 cover_present = True
 slurry_present = True
 cover_thickness, slurry_thickness = 0.5, 0.5

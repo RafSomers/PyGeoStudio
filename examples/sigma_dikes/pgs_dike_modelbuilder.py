@@ -156,7 +156,10 @@ def calc_cover_layer_points(profile_points, inward_thickness, low_wl, high_wl, b
 
     # Construct cover_inside_points output
     offset_pts_low2crest = [p for p in offset_pts if p[1] > low_wl][:-1]  # above low_wl, but not offset of landside
-    unsorted_pts = np.vstack((offset_pts_low2crest, extra_points_on_slope))
+    if len(extra_points_on_slope) > 0:
+        unsorted_pts = np.vstack((offset_pts_low2crest, extra_points_on_slope))
+    else:
+        unsorted_pts = offset_pts_low2crest
     sorted_pts = np.vstack(sorted(unsorted_pts, key=lambda x: x[0]))  # Sort by x-coordinate
     cover_inside_pts = [p for p in sorted_pts if p[1] >= low_wl]
     return cover_inside_pts
@@ -175,64 +178,51 @@ def calc_slurry_layer_points(profile_points, outward_thickness, low_wl):
     lw_left, lw_right = [profile_points[0][0], low_wl], [profile_points[-1][0], low_wl]
 
     # Construct shapely.geometry.LineString objects
-    profile_ls_full = LineString(profile_points)
+    river_points = profile_points[:4]  # only profile points in river & on slope
+    river_ls = LineString(river_points)
     trim_lowwl_ls = LineString([lw_left, lw_right])
 
-    # find the low-water point on the original profile (leftmost intersection)
-    _lw_inter = profile_ls_full.intersection(trim_lowwl_ls)
-    if _lw_inter.is_empty:
-        raise ValueError("Cannot locate low water on profile.")
-    if _lw_inter.geom_type == 'Point':
-        lw_pt = list(_lw_inter.coords[0])
-    elif _lw_inter.geom_type == 'MultiPoint':
-        pts = [list(g.coords[0]) for g in _lw_inter.geoms]
-        lw_pt = sorted(pts, key=lambda x: x[0])[0]
-    elif _lw_inter.geom_type == 'LineString':
-        lw_pt = list(_lw_inter.coords[0])
-    else:
-        # fall back to first available coordinate
-        lw_pt = list(list(_lw_inter.geoms)[0].coords[0])
-
-    # source polyline for slurry: left border → river toe → low-water on slope
-    profile_ls = LineString([profile_points[0], profile_points[1], lw_pt])
-
     # Create offset LineString and points list (to the LEFT so riverbed part is above)
-    offset_ls = profile_ls.parallel_offset(outward_thickness, side='left', join_style=2)
+    offset_ls = river_ls.parallel_offset(outward_thickness, side='left', join_style=2)
     offset_pts = [list(tup) for tup in list(offset_ls.coords)]
 
     # Get intersections
     intersection_lowwl = offset_ls.intersection(trim_lowwl_ls)
 
     # Get points from intersections
-    def get_extra_points(list_of_geoms, list_of_locs):
-        list_of_extra_points = []
-        for geom, loc in zip(list_of_geoms, list_of_locs):
+    def select_point_from_intersection(list_of_intersections, list_of_locs):
+        list_of_selected_points = []
+        for geom, loc in zip(list_of_intersections, list_of_locs):
             if geom.is_empty:
                 continue
             elif geom.geom_type == 'Point':
-                list_of_extra_points.append(list(geom.coords[0]))
+                list_of_selected_points.append(list(geom.coords[0]))
             elif geom.geom_type == 'MultiPoint':
                 all_mpts_tuple_list = [pt_geom.coords[0] for pt_geom in geom.geoms]
                 all_mpts = [list(tup) for tup in all_mpts_tuple_list]
                 sorted_mpts = sorted(all_mpts, key=lambda x: x[0])
-                if loc in ['low', 'high']:
-                    list_of_extra_points.append(sorted_mpts[0])  # river-side = leftmost
+                if loc == 'left':
+                    list_of_selected_points.append(sorted_mpts[0])
+                elif loc == 'right':
+                    list_of_selected_points.append(sorted_mpts[1])
+                else:
+                    raise ValueError(f"location should be left or right")
             else:
                 raise ValueError(f"Unsupported geometry type: {geom.geom_type}")
-        # keep shape 2D so vstack never fails
-        return np.array(list_of_extra_points).reshape(-1, 2)
+        return np.array(list_of_selected_points)
 
     geoms = [intersection_lowwl]
-    locs  = ['low', 'low', 'low']
-    extra_points_on_slope = get_extra_points(geoms, locs)
+    locs  = ['left']
+    extra_points_on_slope = select_point_from_intersection(geoms, locs)
 
     # Construct slurry_outside_points output
-    # keep only points BELOW low water (slurry sits below LWL); no crest part here
-    offset_pts_left2low = np.array([p for p in offset_pts if p[1] <= low_wl]).reshape(-1, 2)
-    unsorted_pts = np.vstack((offset_pts_left2low, extra_points_on_slope))
-    sorted_pts = np.vstack(sorted(unsorted_pts, key=lambda x: x[1]))  # sort by y
-    slurry_outside_pts = np.vstack((sorted_pts,))
-    slurry_outside_pts = slurry_outside_pts[slurry_outside_pts[:, 1] <= low_wl]
+    offset_pts_left2low = [p for p in offset_pts if p[1] <= low_wl]  # only part below low_wl
+    if len(extra_points_on_slope) > 0:
+        unsorted_pts = np.vstack((offset_pts_left2low, extra_points_on_slope))
+    else:
+        unsorted_pts = offset_pts_left2low
+    sorted_pts = np.vstack(sorted(unsorted_pts, key=lambda x: x[1]))  # sort by x-coordinate
+    slurry_outside_pts = [p for p in sorted_pts if p[1] <= low_wl]
     return slurry_outside_pts
 
 
