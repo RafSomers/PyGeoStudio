@@ -8,8 +8,9 @@ Extract and plot results from analysis
 # This examples illustrates how to extract results from SEEP/W analyses and plot it using ``matplotlib``.
 # First open the study Rapid Drawdown <https://www.geoslope.com/learning/support-resources/example-files/example?id=examples:sigmaw:rapiddrawdown&resourceVersion=23.1.0.00000>`_ from GeoStudio website:
 import PyGeoStudio as pgs
-src_file = "../GeoStudio_files/Rapid drawdown.gsz"
-geofile = pgs.GeoStudioFile(src_file)
+main_path = r"C:\Users\WQ5783\OneDrive - ENGIE\5_PyProjects\PyGeoStudio"
+src_file = "examples/GeoStudio_files/Rapid drawdown.gsz"
+geofile = pgs.GeoStudioFile(main_path+"/"+src_file)
 instant_drawdown = geofile.getAnalysisByName("2 - Instantaneous drawdown")
 
 # %%
