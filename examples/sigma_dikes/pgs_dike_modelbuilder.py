@@ -165,7 +165,6 @@ def calc_cover_layer_points(profile_points, inward_thickness, low_wl, high_wl, b
     return cover_inside_pts
 
 
-# todo: test and update functions below
 def calc_slurry_layer_points(profile_points, outward_thickness, low_wl):
     """
     Generate an offset slurry layer line between start_id and end_id, trimmed to line between the start and end points.
@@ -226,170 +225,6 @@ def calc_slurry_layer_points(profile_points, outward_thickness, low_wl):
     return slurry_outside_pts
 
 
-def calc_bottom_border_points(profile_points, bot_l3):
-    """
-    Create a bottom border line 3x the slope height below the slope toe.
-    Slope height is measured between point 1 (toe) and point 8 (ground level).
-    :param profile_points: List of [x, y] coordinate pairs.
-    :param bot_l3: bottom level of layer 3 (lowest layer)
-    :return: List of [x, y] points for the bottom border (left → right).
-    """
-    # Build bottom border between left boundary (point 0) and right boundary (last point)
-    left_x = profile_points[0][0]
-    right_x = profile_points[-1][0]
-    bottom_border_pts = np.vstack(([left_x, bot_l3], [right_x, bot_l3]))
-    return bottom_border_pts
-
-
-def calc_subground_layers_points(points, y_top_level, y_mid_level, cover_line_pts=None):
-    """
-    Make three subground layer lines (levels only).
-    Top & middle: left point is on COVER at that Y if available; else on SLOPE.
-    For any level below the slope toe, the left point is on the LEFT BORDER at that Y.
-    Bottom runs from right boundary to LEFT border at the bottom border elevation.
-    :param points: List of [x, y] surface points.
-    :param y_top_level: Absolute Y for the top layer line.
-    :param y_mid_level: Absolute Y for the middle layer line.
-    :param cover_line_pts: Nx2 cover polyline points (from calc_cover_layer_points). Optional.
-    :return: Nx2 array of [x, y] points for all three layer lines (top, middle, bottom).
-    """
-    # Geometry references
-    toe_x, toe_y = points[1][0], points[1][1]
-    grd_x, grd_y = points[6][0], points[6][1]
-    left_x = points[0][0]
-    right_x = points[-1][0]
-
-    # Bottom border (3x slope height below toe)
-    slope_h = grd_y - toe_y
-    bottom_y = toe_y - 3 * slope_h
-
-    # Clamp levels to [bottom_y, grd_y]
-    def _clamp(y): return max(min(y, grd_y), bottom_y)
-    y_top = _clamp(y_top_level)
-    y_mid = _clamp(y_mid_level)
-    y_bot = bottom_y
-
-    # x on SLOPE (points 1..8) at a given y (with clamping)
-    def _x_on_slope(y):
-        if y <= toe_y: return toe_x
-        if y >= grd_y: return grd_x
-        for i in range(1, 8):
-            x0, y0 = points[i]
-            x1, y1 = points[i + 1]
-            if np.isclose(y, y0): return x0
-            if np.isclose(y, y1): return x1
-            if (y0 - y) * (y1 - y) < 0:
-                t = (y - y0) / (y1 - y0)
-                return x0 + t * (x1 - x0)
-        return grd_x
-
-    # x on a polyline at Y by segment interpolation (returns None if Y not covered)
-    def _x_on_polyline_at_y(poly_pts, y):
-        for i in range(len(poly_pts) - 1):
-            x0, y0 = poly_pts[i]
-            x1, y1 = poly_pts[i + 1]
-            if np.isclose(y, y0): return x0
-            if np.isclose(y, y1): return x1
-            if np.isclose(y0, y1) and np.isclose(y, y0):
-                return min(x0, x1)
-            if (y0 - y) * (y1 - y) < 0:
-                t = (y - y0) / (y1 - y0)
-                return x0 + t * (x1 - x0)
-        return None
-
-    # Left-side X at Y: if below toe -> LEFT BORDER; else COVER if hits, else SLOPE
-    def _x_left_at_y(y):
-        if y <= toe_y:
-            return left_x
-        if cover_line_pts is not None and len(cover_line_pts) >= 2:
-            xi = _x_on_polyline_at_y(cover_line_pts, y)
-            if xi is not None:
-                return xi
-        return _x_on_slope(y)
-
-    # Build 2-point lines for each layer
-    top_pts = np.vstack(([right_x, y_top], [_x_left_at_y(y_top), y_top]))
-    mid_pts = np.vstack(([right_x, y_mid], [_x_left_at_y(y_mid), y_mid]))
-    bot_pts = np.vstack(([right_x, y_bot], [left_x, y_bot]))
-
-    # Return all in one array (top, middle, bottom)
-    return np.vstack((top_pts, mid_pts, bot_pts))
-
-def calc_subground_layers_points(points, y_top_level, y_mid_level, cover_line_pts=None):
-    """
-    Make three subground layer lines (levels only).
-    Top & middle: left point is on COVER at that Y if available; else on SLOPE.
-    For any level below the slope toe, the left point is on the LEFT BORDER at that Y.
-    Bottom runs from right boundary to LEFT border at the bottom border elevation.
-    :param points: List of [x, y] surface points.
-    :param y_top_level: Absolute Y for the top layer line.
-    :param y_mid_level: Absolute Y for the middle layer line.
-    :param cover_line_pts: Nx2 cover polyline points (from calc_cover_layer_points). Optional.
-    :return: Nx2 array of [x, y] points for all three layer lines (top, middle, bottom).
-    """
-    # Geometry references
-    toe_x, toe_y = points[1][0], points[1][1]
-    grd_x, grd_y = points[6][0], points[6][1]
-    left_x = points[0][0]
-    right_x = points[-1][0]
-
-    # Bottom border (3x slope height below toe)
-    slope_h = grd_y - toe_y
-    bottom_y = toe_y - 3 * slope_h
-
-    # Clamp levels to [bottom_y, grd_y]
-    def _clamp(y): return max(min(y, grd_y), bottom_y)
-    y_top = _clamp(y_top_level)
-    y_mid = _clamp(y_mid_level)
-    y_bot = bottom_y
-
-    # x on SLOPE (points 1..8) at a given y (with clamping)
-    def _x_on_slope(y):
-        if y <= toe_y: return toe_x
-        if y >= grd_y: return grd_x
-        for i in range(1, 8):
-            x0, y0 = points[i]
-            x1, y1 = points[i + 1]
-            if np.isclose(y, y0): return x0
-            if np.isclose(y, y1): return x1
-            if (y0 - y) * (y1 - y) < 0:
-                t = (y - y0) / (y1 - y0)
-                return x0 + t * (x1 - x0)
-        return grd_x
-
-    # x on a polyline at Y by segment interpolation (returns None if Y not covered)
-    def _x_on_polyline_at_y(poly_pts, y):
-        for i in range(len(poly_pts) - 1):
-            x0, y0 = poly_pts[i]
-            x1, y1 = poly_pts[i + 1]
-            if np.isclose(y, y0): return x0
-            if np.isclose(y, y1): return x1
-            if np.isclose(y0, y1) and np.isclose(y, y0):
-                return min(x0, x1)
-            if (y0 - y) * (y1 - y) < 0:
-                t = (y - y0) / (y1 - y0)
-                return x0 + t * (x1 - x0)
-        return None
-
-    # Left-side X at Y: if below toe -> LEFT BORDER; else COVER if hits, else SLOPE
-    def _x_left_at_y(y):
-        if y <= toe_y:
-            return left_x
-        if cover_line_pts is not None and len(cover_line_pts) >= 2:
-            xi = _x_on_polyline_at_y(cover_line_pts, y)
-            if xi is not None:
-                return xi
-        return _x_on_slope(y)
-
-    # Build 2-point lines for each layer
-    top_pts = np.vstack(([right_x, y_top], [_x_left_at_y(y_top), y_top]))
-    mid_pts = np.vstack(([right_x, y_mid], [_x_left_at_y(y_mid), y_mid]))
-    bot_pts = np.vstack(([right_x, y_bot], [left_x, y_bot]))
-
-    # Return all in one array (top, middle, bottom)
-    return np.vstack((top_pts, mid_pts, bot_pts))
-
-
 def update_profile_points(profile_pts, low_wl, high_wl, bot_l1, bot_l2):
     """
     Adds new points on the river slope at low water level, high water level and ground level.
@@ -429,6 +264,96 @@ def update_profile_points(profile_pts, low_wl, high_wl, bot_l1, bot_l2):
     new_points = np.vstack((profile_pts[:2], interpolated_points, profile_pts[3:]))   # Insert between p2 en p4
     return new_points
 
+
+# def calc_bottom_border_points(profile_points, bot_l3):
+#     """
+#     Create a bottom border line 3x the slope height below the slope toe.
+#     Slope height is measured between point 1 (toe) and point 8 (ground level).
+#     :param profile_points: List of [x, y] coordinate pairs.
+#     :param bot_l3: bottom level of layer 3 (lowest layer)
+#     :return: List of [x, y] points for the bottom border (left → right).
+#     """
+#     # Build bottom border between left boundary (point 0) and right boundary (last point)
+#     left_x = profile_points[0][0]
+#     right_x = profile_points[-1][0]
+#     bottom_border_pts = np.vstack(([left_x, bot_l3], [right_x, bot_l3]))
+#     return bottom_border_pts
+
+
+# def calc_subground_layers_points(points, y_top_level, y_mid_level, cover_line_pts=None):
+#     """
+#     Make three subground layer lines (levels only).
+#     Top & middle: left point is on COVER at that Y if available; else on SLOPE.
+#     For any level below the slope toe, the left point is on the LEFT BORDER at that Y.
+#     Bottom runs from right boundary to LEFT border at the bottom border elevation.
+#     :param points: List of [x, y] surface points.
+#     :param y_top_level: Absolute Y for the top layer line.
+#     :param y_mid_level: Absolute Y for the middle layer line.
+#     :param cover_line_pts: Nx2 cover polyline points (from calc_cover_layer_points). Optional.
+#     :return: Nx2 array of [x, y] points for all three layer lines (top, middle, bottom).
+#     """
+#     # Geometry references
+#     toe_x, toe_y = points[1][0], points[1][1]
+#     grd_x, grd_y = points[6][0], points[6][1]
+#     left_x = points[0][0]
+#     right_x = points[-1][0]
+#
+#     # Bottom border (3x slope height below toe)
+#     slope_h = grd_y - toe_y
+#     bottom_y = toe_y - 3 * slope_h
+#
+#     # Clamp levels to [bottom_y, grd_y]
+#     def _clamp(y): return max(min(y, grd_y), bottom_y)
+#     y_top = _clamp(y_top_level)
+#     y_mid = _clamp(y_mid_level)
+#     y_bot = bottom_y
+#
+#     # x on SLOPE (points 1..8) at a given y (with clamping)
+#     def _x_on_slope(y):
+#         if y <= toe_y: return toe_x
+#         if y >= grd_y: return grd_x
+#         for i in range(1, 8):
+#             x0, y0 = points[i]
+#             x1, y1 = points[i + 1]
+#             if np.isclose(y, y0): return x0
+#             if np.isclose(y, y1): return x1
+#             if (y0 - y) * (y1 - y) < 0:
+#                 t = (y - y0) / (y1 - y0)
+#                 return x0 + t * (x1 - x0)
+#         return grd_x
+#
+#     # x on a polyline at Y by segment interpolation (returns None if Y not covered)
+#     def _x_on_polyline_at_y(poly_pts, y):
+#         for i in range(len(poly_pts) - 1):
+#             x0, y0 = poly_pts[i]
+#             x1, y1 = poly_pts[i + 1]
+#             if np.isclose(y, y0): return x0
+#             if np.isclose(y, y1): return x1
+#             if np.isclose(y0, y1) and np.isclose(y, y0):
+#                 return min(x0, x1)
+#             if (y0 - y) * (y1 - y) < 0:
+#                 t = (y - y0) / (y1 - y0)
+#                 return x0 + t * (x1 - x0)
+#         return None
+#
+#     # Left-side X at Y: if below toe -> LEFT BORDER; else COVER if hits, else SLOPE
+#     def _x_left_at_y(y):
+#         if y <= toe_y:
+#             return left_x
+#         if cover_line_pts is not None and len(cover_line_pts) >= 2:
+#             xi = _x_on_polyline_at_y(cover_line_pts, y)
+#             if xi is not None:
+#                 return xi
+#         return _x_on_slope(y)
+#
+#     # Build 2-point lines for each layer
+#     top_pts = np.vstack(([right_x, y_top], [_x_left_at_y(y_top), y_top]))
+#     mid_pts = np.vstack(([right_x, y_mid], [_x_left_at_y(y_mid), y_mid]))
+#     bot_pts = np.vstack(([right_x, y_bot], [left_x, y_bot]))
+#
+#     # Return all in one array (top, middle, bottom)
+#     return np.vstack((top_pts, mid_pts, bot_pts))
+#
 
 def add_right_side_layer_points(profile_pts, bot_l1, bot_l2, bot_l3):
     """
