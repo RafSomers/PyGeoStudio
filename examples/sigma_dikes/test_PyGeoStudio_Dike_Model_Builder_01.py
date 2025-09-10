@@ -57,12 +57,10 @@ print("soil levels:", bot_l1, bot_l2, bot_l3)
 cover_inside_pts = pgs_mb.calc_cover_layer_points(profile_pts, cover_thickness, low_wl, high_wl, bot_l1, bot_l2)
 
 # Create slurry layer
-# todo: Raf check code in pgs_mb
 slurry_outside_pts = pgs_mb.calc_slurry_layer_points(profile_pts, cover_thickness, low_wl)
 
 # Update profile points (add extra ones)
 updated_profile_pts = pgs_mb.update_profile_points(profile_pts, low_wl, high_wl, bot_l1, bot_l2)
-
 
 # add bottom of layer points if on model boundary (left or right)
 # todo: Raf check code in pgs_mb for points that correspond to the bottom of layer 1, 2, 3
@@ -70,24 +68,131 @@ right_boundary_pts = pgs_mb.add_right_side_layer_points(profile_pts, bot_l1, bot
 left_boundary_pts = pgs_mb.add_left_side_layer_points(profile_pts, bot_l1, bot_l2, bot_l3)
 
 # Add hydraulic bpoundary lines
-# todo: Split into two hyd_boundary lines (1) river bed up to HW & (2) ground level at land side
-hyd_boundary_lns = [[i, i+1] for i in range(1, len(updated_profile_pts))]  # always last in updated_profile_pts
+# todo: river hyd bc up to crest (not high wl)
+river_hydb_ln = pgs_mb.get_river_boundary_lines(updated_profile_pts, high_wl)
 # hyd boundary 2
+ground_w_hydb_ln = pgs_mb.get_ground_water_boundary_lines(updated_profile_pts)
 
 # todo: Prepare list that contain the points for specific regions
 
 # Check geometry
-geometry.addPoints(updated_profile_pts)  # includes profile_points
-geometry.addPoints(cover_inside_pts)    # cover layer
-geometry.addPoints(slurry_outside_pts)  # slurry layer
-geometry.addPoints(right_boundary_pts)  # right boundary points
-geometry.addPoints(left_boundary_pts)   # left boundary points
-geometry.addLines(hyd_boundary_lns)
+geometry.addPoints(updated_profile_pts, "UPP")  # includes profile_points
+if cover_present:
+    geometry.addPoints(cover_inside_pts, "c_in")    # cover layer
+if slurry_present:
+    geometry.addPoints(slurry_outside_pts, "s_out")  # slurry layer
+geometry.addPoints(right_boundary_pts, "r_bnd")  # right boundary points
+geometry.addPoints(left_boundary_pts, "l_bnd")   # left boundary points
+geometry.addLines(river_hydb_ln)  # River bed to high water level
+geometry.addLines(ground_w_hydb_ln)  # Ground level (right side) boundary line
 print(geometry.point_table)
+
+# define points of layers
+df = geometry.point_table   # Data frame of point table
+landside_x = profile_pts[5][0]
+landside_y = profile_pts[5][1]
+
+# region inner dike
+if cover_present:
+    source_text = "c_in"
+else:
+    source_text = "UPP"
+in_dike_reg_pts = df.loc[(df['Source'] == source_text) & (df['X'] <= landside_x) & (df['Y'] >= landside_y),
+                         'Point_num'].to_list()
+# region slurry layer
+if slurry_present:
+    # for the slurry layer
+    s_out_pts = df.loc[(df['Source'] == 's_out') & (df['Y'] <= low_wl), 'Point_num'].tolist()
+    # Get 'UPP' points in inverse order
+    s_in_pts = df.loc[(df['Source'] == 'UPP') & (df['Y'] <= low_wl), 'Point_num'].tolist()[::-1]
+    slurry_reg_pts = s_out_pts + s_in_pts      # slurry layer points
+else:
+    slurry_reg_pts = []
+
+# region cover layer wet (part below high_wl and above low_wl)
+if cover_present:
+    # for the cover layer (inverse of cover pts to create region)
+    c_in_pts_w = df.loc[(df['Source'] == 'c_in') & (df['Y'] <= high_wl), 'Point_num'].tolist()[::-1]
+    # Get 'UPP' points in original order
+    c_out_pts_w = df.loc[(df['Source'] == 'UPP') & (df['Y'] >= low_wl) & (df['Y'] <= high_wl), 'Point_num'].tolist()
+    cover_w_reg_pts = c_out_pts_w + c_in_pts_w
+else:
+    # cover layer wet empty
+    cover_w_reg_pts = []
+
+# region cover layer dry (part above high_wl)
+if cover_present:
+    # for the cover layer (inverse of cover pts to create region)
+    c_in_pts_d = df.loc[(df['Source'] == 'c_in') & (df['Y'] >= high_wl), 'Point_num'].tolist()[::-1]
+    # Get 'UPP' points in original order
+    c_out_pts_d = df.loc[(df['Source'] == 'UPP') & (df['X'] <= landside_x) & (df['Y'] >= high_wl), 'Point_num'].tolist()
+    cover_d_reg_pts = c_out_pts_d + c_in_pts_d
+else:
+    cover_d_reg_pts = []
+
+# upper subground region layer
+# c_in_pts = df.loc[(df['Source'] == 'c_in') & (df['Y'] >= low_wl), 'Point_num'].tolist()
+if cover_present:
+    sub1_l_bn_pts = df.loc[(df['Source'] == "l_bnd") & (df['Y'] >= bot_l1), 'Point_num'].tolist()
+    sub1_UPP_pts = df.loc[(df['Source'] == "UPP") & (df['Y'] >= bot_l1) & (df['Y'] <= low_wl), 'Point_num'].tolist()
+    sub1_c_in_pts = df.loc[(df['Source'] == "c_in") & (df['Y'] >= bot_l1) & (df['Y'] <= landside_y),
+                           'Point_num'].tolist()
+    sub1_dike_pts = sub1_l_bn_pts + sub1_UPP_pts + sub1_c_in_pts
+else:
+    sub1_l_bn_pts = df.loc[(df['Source'] == "l_bnd") & (df['Y'] >= bot_l1), 'Point_num'].tolist()
+    sub1_UPP_pts = df.loc[(df['Source'] == 'UPP') & (df['Y'] >= bot_l1) & (df['Y'] <= landside_y) &
+                           (df['X'] < landside_x), 'Point_num'].tolist()
+    sub1_dike_pts =  sub1_l_bn_pts + sub1_UPP_pts
+sub1_land_pts = df.loc[(df['Source'] == 'UPP') & (df['X'] >= landside_x), 'Point_num'].tolist()
+sub1_r_bnd_pts = df.loc[(df['Source'] == 'r_bnd') & (df['Y'] < landside_y) & (df['Y'] >= bot_l1), 'Point_num'].tolist()
+sub1_reg_pts = sub1_dike_pts + sub1_land_pts + sub1_r_bnd_pts
+
+# region middle subground layer
+if cover_present:
+    sub2_l_bnd_pts = df.loc[(df['Source'] == "l_bnd") & (df['Y'] >= bot_l2) & (df['Y'] <= bot_l1),
+                            'Point_num'].tolist()[::-1]
+    sub2_UPP_pts = df.loc[(df['Source'] == "UPP") & (df['Y'] <= low_wl) & (df['Y'] <= bot_l1) & (df['Y'] >= bot_l2),
+                          'Point_num'].tolist()
+    sub2_c_in_pts = df.loc[(df['Source'] == "c_in") & (df['Y'] <= bot_l1), 'Point_num'].tolist()
+    sub2_dike_pts = sub2_l_bnd_pts + sub2_UPP_pts + sub2_c_in_pts
+else:
+    sub2_l_bnd_pts = df.loc[(df['Source'] == "l_bnd") & (df['Y'] >= bot_l2) & (df['Y'] <= bot_l1),
+                            'Point_num'].tolist()[::-1]
+    sub2_UPP_pts = df.loc[(df['Source'] == 'UPP') & (df['Y'] >= bot_l2) & (df['Y'] <= bot_l1) &
+                           (df['X'] < landside_x), 'Point_num'].tolist()
+    sub2_dike_pts = sub2_l_bnd_pts + sub2_UPP_pts
+sub2_r_bnd_pts = df.loc[(df['Source'] == 'r_bnd') & (df['Y'] <= bot_l1) & (df['Y'] >= bot_l2), 'Point_num'].tolist()
+sub2_reg_pts = sub2_dike_pts + sub2_r_bnd_pts
+
+# region bottom subground layer
+if cover_present:
+    sub3_l_bnd_pts = df.loc[(df['Source'] == "l_bnd") & (df['Y'] >= bot_l3) & (df['Y'] <= bot_l2),
+                            'Point_num'].tolist()[::-1]
+    sub3_UPP_pts = df.loc[(df['Source'] == "UPP") & (df['Y'] >= bot_l3) & (df['Y'] <= bot_l2) & (df['Y'] <= low_wl),
+                          'Point_num'].tolist()
+    sub3_c_in_pts = df.loc[(df['Source'] == "c_in") & (df['Y'] <= bot_l2), 'Point_num'].tolist()
+    sub3_dike_pts = sub3_l_bnd_pts + sub3_UPP_pts + sub3_c_in_pts
+else:
+    sub3_l_bnd_pts = df.loc[(df['Source'] == "l_bnd") & (df['Y'] >= bot_l3) & (df['Y'] <= bot_l2),
+                            'Point_num'].tolist()[::-1]
+    sub3_UPP_pts = df.loc[(df['Source'] == 'UPP') & (df['Y'] >= bot_l3) & (df['Y'] <= bot_l2) &(df['X'] < landside_x),
+                          'Point_num'].tolist()
+    sub3_dike_pts = sub3_l_bnd_pts + sub3_UPP_pts
+sub3_r_bnd_pts = df.loc[(df['Source'] == 'r_bnd') & (df['Y'] <= bot_l2) & (df['Y'] >= bot_l3), 'Point_num'].tolist()
+sub3_reg_pts = sub3_dike_pts + sub3_r_bnd_pts
+
+print(in_dike_reg_pts)
+geometry.addRegions(in_dike_reg_pts)
+geometry.addRegions(slurry_reg_pts)
+geometry.addRegions(cover_w_reg_pts)
+geometry.addRegions(cover_d_reg_pts)
+geometry.addRegions(sub1_reg_pts)
+geometry.addRegions(sub2_reg_pts)
+geometry.addRegions(sub3_reg_pts)
+print(geometry.point_table)
+
 fig, ax = geometry.draw()   # todo: do we still need the plot?
 plt.show()
-
-
 
 """
 # Normalize into cover_p1 / cover_p2 attributes
