@@ -58,26 +58,20 @@ print("soil levels:", bot_l1, bot_l2, bot_l3)
 cover_inside_pts = pgs_mb.calc_cover_layer_points(profile_pts, cover_thickness, low_wl, high_wl, bot_l1, bot_l2)
 
 # Create slurry layer
-# todo: remove layer1,2 intersections (done)
 slurry_outside_pts = pgs_mb.calc_slurry_layer_points(profile_pts, cover_thickness, low_wl)
-# geometry.addPoints(slurry_outside_pts)
 
-# Add extra points to surface points
-# todo: update function to create additional points(lowwl, highwl, gl, layer1, layer2) (done)
+# Update profile points (add extra ones)
 updated_profile_pts = pgs_mb.update_profile_points(profile_pts, low_wl, high_wl, bot_l1, bot_l2)
 
-# todo: add points that correspond to the right side of the model to layer 1, 2, 3 (done)
-# add right side boundary points
+# add bottom of layer points if on model boundary (left or right)
 right_boundary_pts = pgs_mb.add_right_side_layer_points(profile_pts, bot_l1, bot_l2, bot_l3)
-
-# add right side boundary points
 left_boundary_pts = pgs_mb.add_left_side_layer_points(profile_pts, bot_l1, bot_l2, bot_l3)
 
 # Add hydraulic bpoundary lines
-# todo: Split into two hyd_boundary lines (1) river bed up to HW & (2) ground level at land side
 river_hydb_ln = pgs_mb.get_river_boundary_lines(updated_profile_pts, high_wl)
 # hyd boundary 2
 ground_w_hydb_ln = pgs_mb.get_ground_water_boundary_lines(updated_profile_pts)
+
 # Check geometry
 geometry.addPoints(updated_profile_pts, "UPP")  # includes profile_points
 if cover_present:
